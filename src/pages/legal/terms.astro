@@ -1,0 +1,54 @@
+---
+export const prerender = true;
+
+import LegalLayout from '../../layouts/LegalLayout.astro';
+---
+
+<LegalLayout
+  title="Terms of Service"
+  description="Licensing and usage terms for PapaBlog's code and written content."
+  lastUpdated={new Date('2026-09-27')}
+>
+  <h2>Licensing</h2>
+  <p>This site's content is split into two separately licensed parts:</p>
+  <ul>
+    <li>
+      <strong>Source code</strong> — the software that runs this site, and any code snippets embedded in posts — is
+      licensed under the <a href="https://opensource.org/licenses/MIT">MIT License</a>. You may reuse it freely, with no
+      attribution required, per the terms of that license.
+    </li>
+    <li>
+      <strong>Written content</strong> — the text of blog posts — is licensed under{' '}
+      <a href="https://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0 (CC BY 4.0)</a>. You may
+      share and adapt it, including commercially, as long as you give appropriate credit and link back to the original
+      post.
+    </li>
+  </ul>
+  <p>
+    See the repository's <code>LICENSE</code> and <code>LICENSE-CONTENT.md</code> files for the full legal text of each.
+  </p>
+
+  <h2>Accuracy</h2>
+  <p>
+    Posts on this site reflect what I was learning and understood at the time of writing. They're provided "as is,"
+    without warranty of any kind — technical details, code samples, and recommendations may be incomplete, outdated, or
+    simply wrong. Verify anything safety- or production-critical against primary sources before relying on it.
+  </p>
+
+  <h2>External links</h2>
+  <p>
+    Posts may link to third-party sites and tools. I don't control and am not responsible for their content,
+    availability, or practices.
+  </p>
+
+  <h2>Changes to these terms</h2>
+  <p>
+    These terms may be updated as the site changes — for example, as new features like comments or a newsletter are
+    added. The "Last updated" date above reflects the most recent revision.
+  </p>
+
+  <h2>Contact</h2>
+  <p>
+    Questions about these terms: <a href="mailto:dursky.k@gmail.com">dursky.k@gmail.com</a>.
+  </p>
+</LegalLayout>

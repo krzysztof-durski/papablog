@@ -1,0 +1,23 @@
+---
+export const prerender = true;
+
+import LegalLayout from '../layouts/LegalLayout.astro';
+---
+
+<LegalLayout title="About" description="About PapaBlog and the person writing it.">
+  <p>
+    Hi, I'm Krzysiek. PapaBlog is where I write down what I'm learning — partly so future-me remembers, partly in case
+    it helps someone else searching for the same answer.
+  </p>
+  <p>
+    Expect posts on the tools and problems I'm actually working through, written as I go rather than after I've fully
+    figured it out — so if something's incomplete or later turns out to be wrong, that's why. Corrections are welcome.
+  </p>
+  <p>
+    This site is open source and built with Astro, deployed on Cloudflare. See the{' '}
+    <a href="/legal/terms">Terms of Service</a> for how the code and writing here can be reused.
+  </p>
+  <p>
+    Get in touch: <a href="mailto:dursky.k@gmail.com">dursky.k@gmail.com</a>.
+  </p>
+</LegalLayout>

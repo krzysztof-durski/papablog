@@ -1,0 +1,37 @@
+---
+export const prerender = true;
+
+import LegalLayout from '../../layouts/LegalLayout.astro';
+---
+
+<LegalLayout
+  title="Privacy Policy"
+  description="What data PapaBlog collects — currently, none."
+  lastUpdated={new Date('2026-09-27')}
+>
+  <p>
+    <strong>Short version:</strong> this site currently collects no personal data about visitors. There are no cookies,
+    no analytics, no tracking scripts, and no forms to submit.
+  </p>
+
+  <h2>What this site does today</h2>
+  <p>
+    PapaBlog is a static blog. Pages are served directly with no visitor tracking, no advertising, and no third-party
+    embeds that set cookies. Your hosting provider (Cloudflare) processes standard connection-level data (like IP
+    address) to serve the page, as any web host does — this isn't something the site itself collects or has access to.
+  </p>
+
+  <h2>This will change as the site grows</h2>
+  <p>
+    Planned features — like a newsletter signup or privacy-respecting analytics — will collect some data (for example,
+    an email address for double opt-in newsletter subscription). Before any such feature ships, this policy will be
+    updated first to explain exactly what's collected, why, how long it's kept, and how to request it be deleted, in
+    line with GDPR. The "Last updated" date above will change whenever that happens — check back if you want the current
+    state.
+  </p>
+
+  <h2>Contact</h2>
+  <p>
+    Questions about privacy on this site: <a href="mailto:dursky.k@gmail.com">dursky.k@gmail.com</a>.
+  </p>
+</LegalLayout>
