@@ -139,3 +139,50 @@ export async function deleteDraft(db: D1Database, id: string): Promise<boolean> 
   const { meta } = await db.prepare("DELETE FROM drafts WHERE id = ?1 AND status = 'draft'").bind(id).run();
   return meta.changes > 0;
 }
+
+/**
+ * Called only after a GitHub commit has already succeeded (see
+ * /api/admin/publish) — this is pure bookkeeping, never the thing that
+ * decides whether a post is "really" published. published_at is set once
+ * and preserved across republishes (COALESCE), so re-editing and
+ * re-publishing an already-live post doesn't reset its original date.
+ */
+export async function markDraftPublished(
+  db: D1Database,
+  id: string,
+  fields: { slug: string; githubPath: string; githubSha: string },
+  updatedBy: string,
+): Promise<Draft | null> {
+  const row = await db
+    .prepare(
+      `UPDATE drafts
+       SET status = 'published',
+           slug = ?1,
+           github_path = ?2,
+           github_sha = ?3,
+           updated_by = ?4,
+           updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+           published_at = COALESCE(published_at, strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+       WHERE id = ?5
+       RETURNING *`,
+    )
+    .bind(fields.slug, fields.githubPath, fields.githubSha, updatedBy, id)
+    .first<DraftRow>();
+
+  return row ? rowToDraft(row) : null;
+}
+
+/** Marks a previously-published post as withdrawn. Retains slug/github_path/published_at as history — only status changes. */
+export async function markDraftUnpublished(db: D1Database, id: string, updatedBy: string): Promise<Draft | null> {
+  const row = await db
+    .prepare(
+      `UPDATE drafts
+       SET status = 'archived', updated_by = ?1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+       WHERE id = ?2 AND status = 'published'
+       RETURNING *`,
+    )
+    .bind(updatedBy, id)
+    .first<DraftRow>();
+
+  return row ? rowToDraft(row) : null;
+}
