@@ -5,6 +5,7 @@ import {
   getDraft,
   listDrafts,
   listTrashedDrafts,
+  purgeAllTrashedDrafts,
   purgeDraft,
   restoreDraft,
   trashDraft,
@@ -195,5 +196,40 @@ describe('purgeDraft', () => {
 
   it('returns false for a nonexistent id', async () => {
     expect(await purgeDraft(env.DB, crypto.randomUUID())).toBe(false);
+  });
+});
+
+describe('purgeAllTrashedDrafts', () => {
+  it('permanently deletes every trashed draft and reports how many', async () => {
+    const kept = await createDraft(env.DB, WRITER);
+    const first = await createDraft(env.DB, WRITER);
+    const second = await createDraft(env.DB, WRITER);
+    await trashDraft(env.DB, first.id, WRITER);
+    await trashDraft(env.DB, second.id, WRITER);
+
+    const count = await purgeAllTrashedDrafts(env.DB);
+
+    expect(count).toBe(2);
+    expect(await listTrashedDrafts(env.DB)).toHaveLength(0);
+    expect(await getDraft(env.DB, kept.id)).not.toBeNull();
+  });
+
+  it('returns 0 when trash is already empty', async () => {
+    await createDraft(env.DB, WRITER);
+    expect(await purgeAllTrashedDrafts(env.DB)).toBe(0);
+  });
+
+  it('never touches a published draft, even if somehow marked deleted', async () => {
+    const created = await createDraft(env.DB, WRITER);
+    await env.DB.prepare(
+      "UPDATE drafts SET status = 'published', deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?1",
+    )
+      .bind(created.id)
+      .run();
+
+    const count = await purgeAllTrashedDrafts(env.DB);
+
+    expect(count).toBe(0);
+    expect(await getDraft(env.DB, created.id)).not.toBeNull();
   });
 });

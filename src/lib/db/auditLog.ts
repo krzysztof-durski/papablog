@@ -5,6 +5,7 @@ export type AuditAction =
   | 'draft.trash'
   | 'draft.restore'
   | 'draft.purge'
+  | 'draft.purgeAll'
   | 'search.reindex';
 export type AuditTargetType = 'post' | 'draft' | 'search_index';
 

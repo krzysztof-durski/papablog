@@ -194,6 +194,12 @@ export async function purgeDraft(db: D1Database, id: string): Promise<boolean> {
   return meta.changes > 0;
 }
 
+/** Empties the trash in one go. Returns how many drafts were removed, for the confirmation UI and audit log. */
+export async function purgeAllTrashedDrafts(db: D1Database): Promise<number> {
+  const { meta } = await db.prepare("DELETE FROM drafts WHERE status = 'draft' AND deleted_at IS NOT NULL").run();
+  return meta.changes;
+}
+
 /**
  * Called only after a GitHub commit has already succeeded (see
  * /api/admin/publish) — this is pure bookkeeping, never the thing that
