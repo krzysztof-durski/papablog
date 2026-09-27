@@ -1,0 +1,22 @@
+pre-commit:
+  parallel: true
+  commands:
+    lint:
+      glob: '*.{js,mjs,ts,tsx,astro}'
+      run: npx eslint --fix {staged_files}
+      stage_fixed: true
+    format:
+      glob: '*.{js,mjs,ts,tsx,astro,css,md,json,jsonc,yml,yaml}'
+      # CLAUDE.md is a symlink to AGENTS.md — Prettier refuses to accept a
+      # symlink passed explicitly as a file argument, even though it's happy
+      # to reach the same content by following AGENTS.md's own glob match.
+      exclude: 'CLAUDE.md'
+      run: npx prettier --write {staged_files}
+      stage_fixed: true
+
+pre-push:
+  commands:
+    typecheck:
+      run: npm run typecheck
+    test:
+      run: npm run test
