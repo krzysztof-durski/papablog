@@ -2,6 +2,7 @@
 import '../styles/global.css';
 import Header from '../components/site/Header.astro';
 import Footer from '../components/site/Footer.astro';
+import Breadcrumbs from '../components/site/Breadcrumbs.astro';
 
 interface Props {
   title: string;
@@ -9,9 +10,11 @@ interface Props {
   ogImage?: string;
   /** Opts out of the blog's prose-width container — for the admin editor, which needs real screen space. */
   wide?: boolean;
+  /** Omit on root pages (Home, Admin dashboard) — there's nowhere "up" to show. */
+  breadcrumbs?: { label: string; href?: string }[];
 }
 
-const { title, description, ogImage, wide = false } = Astro.props;
+const { title, description, ogImage, wide = false, breadcrumbs } = Astro.props;
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 const siteName = 'PapaBlog';
 const pageTitle = title === siteName ? siteName : `${title} · ${siteName}`;
@@ -54,6 +57,7 @@ const resolvedOgImage = new URL(ogImage ?? '/icon-512.png', Astro.site);
   <body class="flex min-h-full flex-col bg-white text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100">
     <Header />
     <main class:list={['mx-auto w-full flex-1 px-4 py-10 sm:px-6 lg:px-8', wide ? 'max-w-7xl' : 'max-w-3xl']}>
+      {breadcrumbs && <Breadcrumbs items={breadcrumbs} />}
       <slot />
     </main>
     <Footer />

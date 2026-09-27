@@ -29,7 +29,11 @@ const tag = Astro.params.tag as string;
 const { posts } = Astro.props;
 ---
 
-<BaseLayout title={tag} description={`Posts tagged "${tag}" on PapaBlog.`}>
+<BaseLayout
+  title={tag}
+  description={`Posts tagged "${tag}" on PapaBlog.`}
+  breadcrumbs={[{ label: 'Home', href: '/' }, { label: 'Tags', href: '/tags' }, { label: tag }]}
+>
   <h1 class="font-brand mb-6 border-b border-slate-200 pb-4 text-3xl font-bold tracking-tight text-slate-900 dark:border-slate-800 dark:text-white">
     {tag}
   </h1>

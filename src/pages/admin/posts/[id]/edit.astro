@@ -13,6 +13,9 @@ const draft = await getDraft(env.DB, id);
 if (!draft) return new Response('Draft not found', { status: 404 });
 ---
 
-<AdminLayout title={draft.title || 'Untitled draft'}>
+<AdminLayout
+  title={draft.title || 'Untitled draft'}
+  breadcrumbs={[{ label: 'Admin', href: '/admin' }, { label: draft.title || 'Untitled draft' }]}
+>
   <PostEditor draft={draft} client:load />
 </AdminLayout>

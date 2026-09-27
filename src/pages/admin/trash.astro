@@ -12,7 +12,7 @@ function formatDate(iso: string): string {
 }
 ---
 
-<AdminLayout title="Trash">
+<AdminLayout title="Trash" breadcrumbs={[{ label: 'Admin', href: '/admin' }, { label: 'Trash' }]}>
   <div class="mb-8">
     <h1 class="font-brand text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Trash</h1>
     <p class="mt-1 text-sm text-slate-500 dark:text-slate-500">

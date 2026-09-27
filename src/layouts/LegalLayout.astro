@@ -5,9 +5,10 @@ interface Props {
   title: string;
   description: string;
   lastUpdated?: Date;
+  breadcrumbs?: { label: string; href?: string }[];
 }
 
-const { title, description, lastUpdated } = Astro.props;
+const { title, description, lastUpdated, breadcrumbs } = Astro.props;
 const formattedDate = lastUpdated?.toLocaleDateString('en-US', {
   year: 'numeric',
   month: 'long',
@@ -15,7 +16,7 @@ const formattedDate = lastUpdated?.toLocaleDateString('en-US', {
 });
 ---
 
-<BaseLayout title={title} description={description}>
+<BaseLayout title={title} description={description} breadcrumbs={breadcrumbs}>
   <header class="mb-8 border-b border-slate-200 pb-6 dark:border-slate-800">
     <h1 class="font-brand text-3xl font-bold tracking-tight text-slate-900 dark:text-white">{title}</h1>
     {formattedDate && (

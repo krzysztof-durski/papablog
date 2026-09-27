@@ -3,11 +3,12 @@ import BaseLayout from './BaseLayout.astro';
 
 interface Props {
   title: string;
+  breadcrumbs?: { label: string; href?: string }[];
 }
 
-const { title } = Astro.props;
+const { title, breadcrumbs } = Astro.props;
 ---
 
-<BaseLayout title={title} description="PapaBlog admin." wide>
+<BaseLayout title={title} description="PapaBlog admin." wide breadcrumbs={breadcrumbs}>
   <slot />
 </BaseLayout>

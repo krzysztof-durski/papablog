@@ -4,7 +4,11 @@ export const prerender = true;
 import LegalLayout from '../layouts/LegalLayout.astro';
 ---
 
-<LegalLayout title="About" description="About PapaBlog and the person writing it.">
+<LegalLayout
+  title="About"
+  description="About PapaBlog and the person writing it."
+  breadcrumbs={[{ label: 'Home', href: '/' }, { label: 'About' }]}
+>
   <p>
     Hi, I'm Krzysiek. PapaBlog is where I write down what I'm learning — partly so future-me remembers, partly in case
     it helps someone else searching for the same answer.

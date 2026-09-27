@@ -8,6 +8,7 @@ interface Props {
 }
 
 const { post } = Astro.props;
+const breadcrumbs = [{ label: 'Home', href: '/' }, { label: post.data.title }];
 const { title, description, publishDate, updatedDate, tags, coverImage, coverImageAlt } = post.data;
 
 const formattedPublishDate = publishDate.toLocaleDateString('en-US', {
@@ -22,7 +23,7 @@ const formattedUpdatedDate = updatedDate?.toLocaleDateString('en-US', {
 });
 ---
 
-<BaseLayout title={title} description={description} ogImage={coverImage}>
+<BaseLayout title={title} description={description} ogImage={coverImage} breadcrumbs={breadcrumbs}>
   <article>
     <header class="mb-8 border-b border-slate-200 pb-8 dark:border-slate-800">
       <h1 class="font-brand text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl dark:text-white">{title}</h1>
