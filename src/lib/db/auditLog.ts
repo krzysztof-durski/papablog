@@ -1,4 +1,11 @@
-export type AuditAction = 'post.publish' | 'post.unpublish' | 'draft.create' | 'search.reindex';
+export type AuditAction =
+  | 'post.publish'
+  | 'post.unpublish'
+  | 'draft.create'
+  | 'draft.trash'
+  | 'draft.restore'
+  | 'draft.purge'
+  | 'search.reindex';
 export type AuditTargetType = 'post' | 'draft' | 'search_index';
 
 export interface AuditLogEntry {

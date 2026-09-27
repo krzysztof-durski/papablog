@@ -1,6 +1,15 @@
 import { env } from 'cloudflare:workers';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createDraft, deleteDraft, getDraft, listDrafts, updateDraft } from '../../../src/lib/db/drafts';
+import {
+  createDraft,
+  getDraft,
+  listDrafts,
+  listTrashedDrafts,
+  purgeDraft,
+  restoreDraft,
+  trashDraft,
+  updateDraft,
+} from '../../../src/lib/db/drafts';
 
 const WRITER = 'dursky.k@gmail.com';
 
@@ -99,27 +108,92 @@ describe('listDrafts', () => {
   });
 });
 
-describe('deleteDraft', () => {
-  it('deletes a never-published draft and reports success', async () => {
+describe('trashDraft', () => {
+  it('soft-deletes a never-published draft and hides it from listDrafts', async () => {
     const created = await createDraft(env.DB, WRITER);
 
-    const deleted = await deleteDraft(env.DB, created.id);
+    const trashed = await trashDraft(env.DB, created.id, WRITER);
 
-    expect(deleted).toBe(true);
-    expect(await getDraft(env.DB, created.id)).toBeNull();
+    expect(trashed?.deletedAt).not.toBeNull();
+    expect(await listDrafts(env.DB)).toHaveLength(0);
+    expect(await getDraft(env.DB, created.id)).not.toBeNull();
   });
 
-  it('refuses to delete a published draft', async () => {
+  it('refuses to trash a published draft', async () => {
     const created = await createDraft(env.DB, WRITER);
     await env.DB.prepare("UPDATE drafts SET status = 'published' WHERE id = ?1").bind(created.id).run();
 
-    const deleted = await deleteDraft(env.DB, created.id);
+    const trashed = await trashDraft(env.DB, created.id, WRITER);
 
-    expect(deleted).toBe(false);
+    expect(trashed).toBeNull();
+  });
+
+  it('refuses to trash an already-trashed draft', async () => {
+    const created = await createDraft(env.DB, WRITER);
+    await trashDraft(env.DB, created.id, WRITER);
+
+    expect(await trashDraft(env.DB, created.id, WRITER)).toBeNull();
+  });
+
+  it('returns null for a nonexistent id', async () => {
+    expect(await trashDraft(env.DB, crypto.randomUUID(), WRITER)).toBeNull();
+  });
+});
+
+describe('restoreDraft', () => {
+  it('un-trashes a draft and it reappears in listDrafts', async () => {
+    const created = await createDraft(env.DB, WRITER);
+    await trashDraft(env.DB, created.id, WRITER);
+
+    const restored = await restoreDraft(env.DB, created.id, WRITER);
+
+    expect(restored?.deletedAt).toBeNull();
+    expect(await listDrafts(env.DB)).toHaveLength(1);
+  });
+
+  it('refuses to restore a draft that was never trashed', async () => {
+    const created = await createDraft(env.DB, WRITER);
+    expect(await restoreDraft(env.DB, created.id, WRITER)).toBeNull();
+  });
+});
+
+describe('listTrashedDrafts', () => {
+  it('lists only trashed drafts, newest-trashed first', async () => {
+    const kept = await createDraft(env.DB, WRITER);
+    const first = await createDraft(env.DB, WRITER);
+    const second = await createDraft(env.DB, WRITER);
+    await trashDraft(env.DB, first.id, WRITER);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await trashDraft(env.DB, second.id, WRITER);
+
+    const trashed = await listTrashedDrafts(env.DB);
+
+    expect(trashed.map((d) => d.id)).toEqual([second.id, first.id]);
+    expect(trashed.map((d) => d.id)).not.toContain(kept.id);
+  });
+});
+
+describe('purgeDraft', () => {
+  it('permanently deletes a trashed draft', async () => {
+    const created = await createDraft(env.DB, WRITER);
+    await trashDraft(env.DB, created.id, WRITER);
+
+    const purged = await purgeDraft(env.DB, created.id);
+
+    expect(purged).toBe(true);
+    expect(await getDraft(env.DB, created.id)).toBeNull();
+  });
+
+  it('refuses to purge a draft that has not been trashed', async () => {
+    const created = await createDraft(env.DB, WRITER);
+
+    const purged = await purgeDraft(env.DB, created.id);
+
+    expect(purged).toBe(false);
     expect(await getDraft(env.DB, created.id)).not.toBeNull();
   });
 
   it('returns false for a nonexistent id', async () => {
-    expect(await deleteDraft(env.DB, crypto.randomUUID())).toBe(false);
+    expect(await purgeDraft(env.DB, crypto.randomUUID())).toBe(false);
   });
 });

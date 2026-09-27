@@ -1,0 +1,85 @@
+---
+export const prerender = false;
+
+import { env } from 'cloudflare:workers';
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { listTrashedDrafts } from '../../lib/db/drafts';
+
+const trashed = await listTrashedDrafts(env.DB);
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+}
+---
+
+<AdminLayout title="Trash">
+  <div class="mb-8">
+    <h1 class="font-brand text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Trash</h1>
+    <p class="mt-1 text-sm text-slate-500 dark:text-slate-500">
+      Deleted drafts land here. Restore one to keep editing it, or delete it permanently to clean up.
+    </p>
+  </div>
+
+  {trashed.length === 0 ? (
+    <p class="text-sm text-slate-500 dark:text-slate-500">Trash is empty.</p>
+  ) : (
+    <ul class="divide-y divide-slate-200 dark:divide-slate-800">
+      {trashed.map((draft) => (
+        <li class="flex items-center justify-between gap-4 py-3">
+          <div>
+            <p class="font-semibold">{draft.title || 'Untitled draft'}</p>
+            <p class="text-xs text-slate-500 dark:text-slate-500">
+              Deleted {draft.deletedAt && formatDate(draft.deletedAt)}
+            </p>
+          </div>
+          <div class="flex shrink-0 items-center gap-3 text-xs font-semibold">
+            <button
+              type="button"
+              data-restore-draft={draft.id}
+              class="text-slate-600 hover:underline dark:text-slate-400"
+            >
+              Restore
+            </button>
+            <button type="button" data-purge-draft={draft.id} class="text-red-600 hover:underline dark:text-red-400">
+              Delete permanently
+            </button>
+          </div>
+        </li>
+      ))}
+    </ul>
+  )}
+</AdminLayout>
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>('[data-restore-draft]').forEach((button) => {
+    button.addEventListener('click', () => {
+      void (async () => {
+        const id = button.dataset.restoreDraft;
+        if (!id) return;
+
+        const res = await fetch(`/api/admin/drafts/${id}/restore`, { method: 'POST' });
+        if (!res.ok) {
+          alert('Failed to restore this draft.');
+          return;
+        }
+        button.closest('li')?.remove();
+      })();
+    });
+  });
+
+  document.querySelectorAll<HTMLButtonElement>('[data-purge-draft]').forEach((button) => {
+    button.addEventListener('click', () => {
+      void (async () => {
+        const id = button.dataset.purgeDraft;
+        if (!id || !confirm('Permanently delete this draft? This cannot be undone.')) return;
+
+        const res = await fetch(`/api/admin/drafts/${id}/purge`, { method: 'POST' });
+        if (!res.ok) {
+          alert('Failed to permanently delete this draft.');
+          return;
+        }
+        button.closest('li')?.remove();
+      })();
+    });
+  });
+</script>

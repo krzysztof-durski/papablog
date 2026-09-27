@@ -18,6 +18,7 @@ export interface Draft {
   createdAt: string;
   updatedAt: string;
   publishedAt: string | null;
+  deletedAt: string | null;
 }
 
 interface DraftRow {
@@ -36,6 +37,7 @@ interface DraftRow {
   created_at: string;
   updated_at: string;
   published_at: string | null;
+  deleted_at: string | null;
 }
 
 function rowToDraft(row: DraftRow): Draft {
@@ -62,6 +64,7 @@ function rowToDraft(row: DraftRow): Draft {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     publishedAt: row.published_at,
+    deletedAt: row.deleted_at,
   };
 }
 
@@ -86,10 +89,22 @@ export async function getDraft(db: D1Database, id: string): Promise<Draft | null
   return row ? rowToDraft(row) : null;
 }
 
+/** Never includes trashed drafts — see listTrashedDrafts for those. */
 export async function listDrafts(db: D1Database, status?: DraftStatus): Promise<Draft[]> {
   const { results } = status
-    ? await db.prepare('SELECT * FROM drafts WHERE status = ?1 ORDER BY updated_at DESC').bind(status).all<DraftRow>()
-    : await db.prepare('SELECT * FROM drafts ORDER BY updated_at DESC').all<DraftRow>();
+    ? await db
+        .prepare('SELECT * FROM drafts WHERE status = ?1 AND deleted_at IS NULL ORDER BY updated_at DESC')
+        .bind(status)
+        .all<DraftRow>()
+    : await db.prepare('SELECT * FROM drafts WHERE deleted_at IS NULL ORDER BY updated_at DESC').all<DraftRow>();
+
+  return results.map(rowToDraft);
+}
+
+export async function listTrashedDrafts(db: D1Database): Promise<Draft[]> {
+  const { results } = await db
+    .prepare('SELECT * FROM drafts WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC')
+    .all<DraftRow>();
 
   return results.map(rowToDraft);
 }
@@ -134,9 +149,48 @@ export async function updateDraft(
   return row ? rowToDraft(row) : null;
 }
 
-/** Only ever deletes a draft that has never been published — a published post's row stays as a record. */
-export async function deleteDraft(db: D1Database, id: string): Promise<boolean> {
-  const { meta } = await db.prepare("DELETE FROM drafts WHERE id = ?1 AND status = 'draft'").bind(id).run();
+/**
+ * Soft-delete: moves a never-published draft to trash rather than removing
+ * it, so it can be restored or purged later. A published post's row is
+ * never trashed this way — see markDraftUnpublished for withdrawing a live
+ * post.
+ */
+export async function trashDraft(db: D1Database, id: string, updatedBy: string): Promise<Draft | null> {
+  const row = await db
+    .prepare(
+      `UPDATE drafts
+       SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+           updated_by = ?1,
+           updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+       WHERE id = ?2 AND status = 'draft' AND deleted_at IS NULL
+       RETURNING *`,
+    )
+    .bind(updatedBy, id)
+    .first<DraftRow>();
+
+  return row ? rowToDraft(row) : null;
+}
+
+export async function restoreDraft(db: D1Database, id: string, updatedBy: string): Promise<Draft | null> {
+  const row = await db
+    .prepare(
+      `UPDATE drafts
+       SET deleted_at = NULL, updated_by = ?1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+       WHERE id = ?2 AND deleted_at IS NOT NULL
+       RETURNING *`,
+    )
+    .bind(updatedBy, id)
+    .first<DraftRow>();
+
+  return row ? rowToDraft(row) : null;
+}
+
+/** Permanently removes a draft's row — only ever a trashed draft, so this can't be reached by accident from the normal editor flow. */
+export async function purgeDraft(db: D1Database, id: string): Promise<boolean> {
+  const { meta } = await db
+    .prepare("DELETE FROM drafts WHERE id = ?1 AND status = 'draft' AND deleted_at IS NOT NULL")
+    .bind(id)
+    .run();
   return meta.changes > 0;
 }
 

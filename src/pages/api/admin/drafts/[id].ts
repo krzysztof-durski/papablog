@@ -2,7 +2,8 @@ import type { APIRoute } from 'astro';
 import { env } from 'cloudflare:workers';
 import { z } from 'astro/zod';
 import { getAccessEmail } from '../../../../lib/auth/context';
-import { deleteDraft, getDraft, updateDraft } from '../../../../lib/db/drafts';
+import { recordAuditLog } from '../../../../lib/db/auditLog';
+import { getDraft, trashDraft, updateDraft } from '../../../../lib/db/drafts';
 import { draftInputSchema } from '../../../../lib/schemas/draft';
 
 export const prerender = false;
@@ -44,10 +45,19 @@ export const PUT: APIRoute = async ({ params, request, locals }) => {
   return Response.json({ draft });
 };
 
-export const DELETE: APIRoute = async ({ params }) => {
-  const deleted = await deleteDraft(env.DB, requireId(params));
-  if (!deleted) {
-    return new Response('Not found, or already published (published drafts cannot be deleted)', { status: 404 });
+/** Moves a draft to trash (soft delete) — see /trash for restoring or /purge for permanent removal. */
+export const DELETE: APIRoute = async ({ params, locals }) => {
+  const id = requireId(params);
+  const actorEmail = getAccessEmail(locals);
+
+  const trashed = await trashDraft(env.DB, id, actorEmail);
+  if (!trashed) {
+    return new Response('Not found, already trashed, or already published (published drafts cannot be trashed)', {
+      status: 404,
+    });
   }
+
+  await recordAuditLog(env.DB, { actorEmail, action: 'draft.trash', targetType: 'draft', targetId: id });
+
   return new Response(null, { status: 204 });
 };
