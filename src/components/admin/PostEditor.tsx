@@ -3,7 +3,7 @@ import type { ClipboardEvent } from 'react';
 import type { Draft } from '../../lib/db/drafts';
 import { htmlToMarkdown } from '../../lib/format/htmlToMarkdown';
 import FrontmatterForm from './FrontmatterForm';
-import { MarkdownCheatSheetPanel, MarkdownCheatSheetToggle } from './MarkdownCheatSheet';
+import MarkdownCheatSheet from './MarkdownCheatSheet';
 import MarkdownPreview from './MarkdownPreview';
 import MediaUploader from './MediaUploader';
 import PublishControls from './PublishControls';
@@ -120,8 +120,7 @@ export default function PostEditor({ draft }: Props) {
         <MediaUploader draftId={draft.id} coverImagePath={coverImagePath} onUploaded={setCoverImagePath} />
       </div>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-[16rem_1fr_1fr]">
-        <MarkdownCheatSheetPanel />
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <div className="flex h-[calc(100vh-22rem)] min-h-[24rem] flex-col">
           <div className="flex items-center gap-1.5">
             <label
@@ -130,7 +129,7 @@ export default function PostEditor({ draft }: Props) {
             >
               Body (Markdown)
             </label>
-            <MarkdownCheatSheetToggle />
+            <MarkdownCheatSheet />
           </div>
           <textarea
             id="post-body"
