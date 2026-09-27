@@ -1,0 +1,118 @@
+---
+interface Props {
+  initialQuery?: string;
+}
+
+const { initialQuery = '' } = Astro.props;
+---
+
+<form method="GET" action="/search" id="search-form" role="search" class="flex gap-2">
+  <label for="search-input" class="sr-only">
+    Search posts
+  </label>
+  <input
+    id="search-input"
+    name="q"
+    type="search"
+    value={initialQuery}
+    placeholder="Search posts…"
+    autocomplete="off"
+    class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-500 focus:ring-1 focus:ring-slate-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:placeholder:text-slate-500"
+  />
+  <button
+    type="submit"
+    class="shrink-0 rounded-md border border-slate-900 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-900 hover:text-white dark:border-white dark:text-white dark:hover:bg-white dark:hover:text-slate-900"
+  >
+    Search
+  </button>
+</form>
+
+<div id="search-status" class="mt-2 text-xs text-slate-500 dark:text-slate-500" aria-live="polite"></div>
+
+<ul id="search-results" class="mt-4 divide-y divide-slate-200 dark:divide-slate-800"></ul>
+
+<script is:inline>
+  (function () {
+    const form = document.getElementById('search-form');
+    const input = document.getElementById('search-input');
+    const status = document.getElementById('search-status');
+    const resultsList = document.getElementById('search-results');
+    if (!(form instanceof HTMLFormElement) || !(input instanceof HTMLInputElement) || !resultsList || !status) return;
+
+    // Server-rendered results (from the ?q= page load, works without JS)
+    // are replaced by this live view once JS takes over — remove the
+    // "action=/search full navigation" behavior in favor of fetch().
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      runSearch(input.value);
+    });
+
+    let debounceTimer;
+    input.addEventListener('input', function () {
+      clearTimeout(debounceTimer);
+      const value = input.value;
+      debounceTimer = setTimeout(function () {
+        runSearch(value);
+      }, 250);
+    });
+
+    function renderSnippet(container, snippet) {
+      // snippet() wraps matches in [ ]; render those as <mark> via safe DOM
+      // construction (no innerHTML) rather than trusting embedded markup.
+      const parts = snippet.split(/\[|\]/);
+      parts.forEach(function (part, i) {
+        if (i % 2 === 1) {
+          const mark = document.createElement('mark');
+          mark.className = 'bg-yellow-200 dark:bg-yellow-900';
+          mark.textContent = part;
+          container.appendChild(mark);
+        } else if (part) {
+          container.appendChild(document.createTextNode(part));
+        }
+      });
+    }
+
+    function renderResults(results) {
+      resultsList.replaceChildren();
+      results.forEach(function (result) {
+        const li = document.createElement('li');
+        li.className = 'py-3';
+        const a = document.createElement('a');
+        a.href = '/posts/' + result.slug + '/';
+        a.className = 'block hover:underline';
+        const title = document.createElement('p');
+        title.className = 'font-brand font-bold text-slate-900 dark:text-white';
+        title.textContent = result.title;
+        const snippet = document.createElement('p');
+        snippet.className = 'mt-1 text-sm text-slate-600 dark:text-slate-400';
+        renderSnippet(snippet, result.snippet);
+        a.appendChild(title);
+        a.appendChild(snippet);
+        li.appendChild(a);
+        resultsList.appendChild(li);
+      });
+    }
+
+    async function runSearch(query) {
+      const trimmed = query.trim();
+      history.replaceState(null, '', trimmed ? '/search?q=' + encodeURIComponent(trimmed) : '/search');
+
+      if (!trimmed) {
+        resultsList.replaceChildren();
+        status.textContent = '';
+        return;
+      }
+
+      status.textContent = 'Searching…';
+      try {
+        const res = await fetch('/api/search?q=' + encodeURIComponent(trimmed));
+        if (!res.ok) throw new Error('Search request failed');
+        const data = await res.json();
+        renderResults(data.results);
+        status.textContent = data.results.length === 0 ? 'No results.' : data.results.length + ' result(s).';
+      } catch {
+        status.textContent = 'Search failed — try again.';
+      }
+    }
+  })();
+</script>

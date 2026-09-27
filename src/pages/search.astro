@@ -1,0 +1,42 @@
+---
+export const prerender = false;
+
+import { env } from 'cloudflare:workers';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import SearchBox from '../components/site/SearchBox.astro';
+import { searchQuerySchema } from '../lib/schemas/search';
+import { searchPosts } from '../lib/db/postsFts';
+import { snippetToHtml } from '../lib/format/snippetHtml';
+
+const rawQuery = Astro.url.searchParams.get('q') ?? '';
+const parsed = searchQuerySchema.safeParse({ q: rawQuery });
+const results = parsed.success ? await searchPosts(env.DB, parsed.data.q) : [];
+---
+
+<BaseLayout title="Search" description="Search PapaBlog posts.">
+  <h1 class="font-brand mb-6 border-b border-slate-200 pb-4 text-3xl font-bold tracking-tight text-slate-900 dark:border-slate-800 dark:text-white">
+    Search
+  </h1>
+
+  <SearchBox initialQuery={parsed.success ? parsed.data.q : ''} />
+
+  <!-- Server-rendered fallback for no-JS requests / direct ?q= links. The
+       inline script in SearchBox progressively replaces this with a live,
+       client-fetched view once it runs. -->
+  {parsed.success && (
+    <ul id="search-results-ssr" class="mt-4 divide-y divide-slate-200 dark:divide-slate-800">
+      {results.length === 0 ? (
+        <p class="py-3 text-slate-600 dark:text-slate-400">No results for "{parsed.data.q}".</p>
+      ) : (
+        results.map((result) => (
+          <li class="py-3">
+            <a href={`/posts/${result.slug}/`} class="block hover:underline">
+              <p class="font-brand font-bold text-slate-900 dark:text-white">{result.title}</p>
+              <p class="mt-1 text-sm text-slate-600 dark:text-slate-400" set:html={snippetToHtml(result.snippet)} />
+            </a>
+          </li>
+        ))
+      )}
+    </ul>
+  )}
+</BaseLayout>
