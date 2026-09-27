@@ -3,6 +3,7 @@ import type { ClipboardEvent } from 'react';
 import type { Draft } from '../../lib/db/drafts';
 import { htmlToMarkdown } from '../../lib/format/htmlToMarkdown';
 import FrontmatterForm from './FrontmatterForm';
+import MarkdownCheatSheet from './MarkdownCheatSheet';
 import MarkdownPreview from './MarkdownPreview';
 import MediaUploader from './MediaUploader';
 import PublishControls from './PublishControls';
@@ -121,12 +122,15 @@ export default function PostEditor({ draft }: Props) {
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <div className="flex h-[calc(100vh-22rem)] min-h-[24rem] flex-col">
-          <label
-            htmlFor="post-body"
-            className="block text-xs font-semibold tracking-wide text-slate-500 uppercase dark:text-slate-400"
-          >
-            Body (Markdown)
-          </label>
+          <div className="flex items-center gap-1.5">
+            <label
+              htmlFor="post-body"
+              className="block text-xs font-semibold tracking-wide text-slate-500 uppercase dark:text-slate-400"
+            >
+              Body (Markdown)
+            </label>
+            <MarkdownCheatSheet />
+          </div>
           <textarea
             id="post-body"
             value={bodyMarkdown}
