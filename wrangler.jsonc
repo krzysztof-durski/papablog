@@ -1,0 +1,58 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "compatibility_date": "2026-09-25",
+  "compatibility_flags": ["global_fetch_strictly_public", "nodejs_compat"],
+  "name": "papablog",
+  "main": "@astrojs/cloudflare/entrypoints/server",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    // /admin and /api must always hit the Worker so Access-JWT verification
+    // and security headers run even for routes with no matching static asset.
+    "run_worker_first": ["/admin/*", "/api/*"],
+  },
+  "observability": {
+    "enabled": true,
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "papablog-db",
+      "database_id": "6b4b055d-46a3-4110-81bb-493b45fb0a50",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "papablog-media",
+    },
+  ],
+  // Astro's Cloudflare adapter auto-provisions a KV namespace for its
+  // session API by default; we don't use Astro.session anywhere, but
+  // declaring it explicitly (rather than leaving it to auto-provisioning)
+  // avoids a namespace-already-exists error on redeploy.
+  "kv_namespaces": [
+    {
+      "binding": "SESSION",
+      "id": "467a4d2f68274cf4a8e30c9a10f2325f",
+    },
+  ],
+  "vars": {
+    "ENVIRONMENT": "production",
+    "ACCESS_TEAM_DOMAIN": "dursky-k.cloudflareaccess.com",
+    "ACCESS_AUD": "cbbf1870b4f312622c11f1d45c054506be27b74c94ba015909e977da47abf199",
+    "ALLOWED_WRITER_EMAILS": "dursky.k@gmail.com",
+    "GITHUB_REPO_OWNER": "krzysztof-durski",
+    "GITHUB_REPO_NAME": "papablog",
+  },
+  // A single (default, unnamed) environment: Wrangler named environments
+  // don't inherit top-level bindings — each one must fully redeclare its own
+  // d1_databases/r2_buckets/vars — and we only ever deploy one real
+  // environment, so that indirection isn't worth the duplication it forces.
+  "routes": [{ "pattern": "papablog.durski.dev", "custom_domain": true }],
+  // workers.dev is intentionally left disabled: Cloudflare Access cannot
+  // protect the *.workers.dev preview subdomain, so /admin must only ever
+  // be reachable on the custom domain above.
+  "workers_dev": false,
+}
