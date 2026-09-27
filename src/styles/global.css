@@ -1,0 +1,10 @@
+@import 'tailwindcss';
+@plugin '@tailwindcss/typography';
+
+/* Dark mode is toggled by a `.dark` class on <html> (see ThemeToggle.astro),
+   not purely by OS preference, so readers can override their system setting. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-brand: Georgia, 'Times New Roman', Times, serif;
+}

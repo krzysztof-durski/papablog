@@ -1,0 +1,26 @@
+---
+export const prerender = true;
+
+import { getCollection } from 'astro:content';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PostCard from '../components/site/PostCard.astro';
+
+const allPosts = await getCollection('posts', ({ data }) => import.meta.env.DEV || !data.draft);
+const posts = allPosts.sort((a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf());
+---
+
+<BaseLayout
+  title="PapaBlog"
+  description="A personal tech blog — notes on what I'm learning, written down so I remember and so others might find them useful."
+>
+  <h1 class="sr-only">PapaBlog</h1>
+  {posts.length === 0 ? (
+    <p class="text-slate-600 dark:text-slate-400">No posts yet — check back soon.</p>
+  ) : (
+    <div class="divide-y divide-slate-200 dark:divide-slate-800">
+      {posts.map((post) => (
+        <PostCard post={post} />
+      ))}
+    </div>
+  )}
+</BaseLayout>

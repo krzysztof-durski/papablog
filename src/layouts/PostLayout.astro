@@ -1,0 +1,50 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import BaseLayout from './BaseLayout.astro';
+import TagBadge from '../components/site/TagBadge.astro';
+
+interface Props {
+  post: CollectionEntry<'posts'>;
+}
+
+const { post } = Astro.props;
+const { title, description, publishDate, updatedDate, tags, coverImage, coverImageAlt } = post.data;
+
+const formattedPublishDate = publishDate.toLocaleDateString('en-US', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+});
+const formattedUpdatedDate = updatedDate?.toLocaleDateString('en-US', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+});
+---
+
+<BaseLayout title={title} description={description} ogImage={coverImage}>
+  <article>
+    <header class="mb-8 border-b border-slate-200 pb-8 dark:border-slate-800">
+      <h1 class="font-brand text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl dark:text-white">{title}</h1>
+      <div class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs tracking-wide text-slate-500 uppercase dark:text-slate-500">
+        <time datetime={publishDate.toISOString()}>Published {formattedPublishDate}</time>
+        {formattedUpdatedDate && <span>&middot; Updated {formattedUpdatedDate}</span>}
+        {tags.length > 0 && (
+          <>
+            <span aria-hidden="true">&middot;</span>
+            <div class="flex flex-wrap gap-x-3">
+              {tags.map((tag) => (
+                <TagBadge tag={tag} />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+      {coverImage && <img src={coverImage} alt={coverImageAlt ?? ''} class="mt-6 w-full" />}
+    </header>
+
+    <div class="prose prose-slate max-w-none dark:prose-invert">
+      <slot />
+    </div>
+  </article>
+</BaseLayout>

@@ -1,0 +1,34 @@
+---
+export const prerender = true;
+
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import TagBadge from '../../components/site/TagBadge.astro';
+
+const posts = await getCollection('posts', ({ data }) => !data.draft);
+const tagCounts = new Map<string, number>();
+for (const post of posts) {
+  for (const tag of post.data.tags) {
+    tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+  }
+}
+const tags = Array.from(tagCounts.entries()).sort((a, b) => b[1] - a[1]);
+---
+
+<BaseLayout title="Tags" description="Browse PapaBlog posts by tag.">
+  <h1 class="font-brand mb-6 border-b border-slate-200 pb-4 text-3xl font-bold tracking-tight text-slate-900 dark:border-slate-800 dark:text-white">
+    Tags
+  </h1>
+  {tags.length === 0 ? (
+    <p class="text-slate-600 dark:text-slate-400">No tags yet.</p>
+  ) : (
+    <ul class="flex flex-wrap gap-x-5 gap-y-3 text-sm">
+      {tags.map(([tag, count]) => (
+        <li class="flex items-center gap-1.5">
+          <TagBadge tag={tag} />
+          <span class="text-xs text-slate-400">({count})</span>
+        </li>
+      ))}
+    </ul>
+  )}
+</BaseLayout>

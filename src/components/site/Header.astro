@@ -1,0 +1,35 @@
+---
+import ThemeToggle from './ThemeToggle.astro';
+
+const navLinks = [
+  { href: '/', label: 'Home' },
+  { href: '/tags', label: 'Tags' },
+  { href: '/search', label: 'Search' },
+];
+---
+
+<header>
+  <div class="border-b-4 border-slate-900 py-8 text-center sm:py-10 dark:border-white">
+    <a href="/" class="font-brand text-5xl font-bold tracking-tight text-slate-900 sm:text-6xl dark:text-white">
+      PapaBlog
+    </a>
+  </div>
+  <div class="border-b border-slate-200 dark:border-slate-800">
+    <div class="mx-auto grid max-w-3xl grid-cols-[1fr_auto_1fr] items-center px-4 py-2.5 sm:px-6 lg:px-8">
+      <span></span>
+      <nav
+        class="flex justify-center gap-6 text-xs font-semibold tracking-widest text-slate-600 uppercase dark:text-slate-400"
+        aria-label="Primary"
+      >
+        {navLinks.map((link) => (
+          <a href={link.href} class="hover:text-slate-900 dark:hover:text-white">
+            {link.label}
+          </a>
+        ))}
+      </nav>
+      <div class="flex justify-end">
+        <ThemeToggle />
+      </div>
+    </div>
+  </div>
+</header>

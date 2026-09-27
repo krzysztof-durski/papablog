@@ -1,0 +1,57 @@
+---
+// Companion to the inline theme-init script in BaseLayout.astro: that script
+// sets the initial `.dark` class before paint, this button lets the reader
+// override it, persisting their choice to localStorage.
+---
+
+<button
+  id="theme-toggle"
+  type="button"
+  class="rounded-md p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+  data-toggle-label-light="Switch to light mode"
+  data-toggle-label-dark="Switch to dark mode"
+>
+  <!-- Moon: shown in light mode, click to go dark -->
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    class="h-4 w-4 dark:hidden"
+    fill="currentColor"
+    viewBox="0 0 20 20"
+    aria-hidden="true"
+  >
+    <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path>
+  </svg>
+  <!-- Sun: shown in dark mode, click to go light -->
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    class="hidden h-4 w-4 dark:block"
+    fill="none"
+    viewBox="0 0 24 24"
+    stroke="currentColor"
+    stroke-width="2"
+    aria-hidden="true"
+  >
+    <path
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      d="M12 3v1.5m0 15V21m9-9h-1.5m-15 0H3m15.364-6.364l-1.06 1.06M6.696 17.304l-1.06 1.06m12.728 0l-1.06-1.06M6.696 6.696l-1.06-1.06M16.5 12a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"
+    ></path>
+  </svg>
+</button>
+
+<script is:inline>
+  (function () {
+    const btn = document.getElementById('theme-toggle');
+    if (!btn) return;
+    const syncLabel = function () {
+      const isDark = document.documentElement.classList.contains('dark');
+      btn.setAttribute('aria-label', isDark ? btn.dataset.toggleLabelLight : btn.dataset.toggleLabelDark);
+    };
+    syncLabel();
+    btn.addEventListener('click', function () {
+      const isDark = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('theme', isDark ? 'dark' : 'light');
+      syncLabel();
+    });
+  })();
+</script>
