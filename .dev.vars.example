@@ -1,0 +1,8 @@
+# Copy this file to .dev.vars (already gitignored) and fill in real values
+# for local development. .dev.vars is never deployed — see wrangler secret
+# put for production secrets.
+
+# Lets local dev / Playwright tests bypass the real Cloudflare Access login
+# by sending X-E2E-Bypass-Secret + X-Test-Access-Email headers. Pick any
+# random local value — this must NEVER be set as a real deployed secret.
+E2E_BYPASS_SECRET=local-dev-bypass-change-me
