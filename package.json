@@ -35,6 +35,8 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "tailwindcss": "^4.3.3",
+    "turndown": "^7.2.4",
+    "turndown-plugin-gfm": "^1.0.2",
     "wrangler": "^4.141.0"
   },
   "allowScripts": {
@@ -52,6 +54,7 @@
     "@playwright/test": "^1.63.0",
     "@tailwindcss/typography": "^0.5.20",
     "@types/js-yaml": "^4.0.9",
+    "@types/turndown": "^5.0.6",
     "eslint": "^10.11.0",
     "eslint-plugin-astro": "^3.2.1",
     "eslint-plugin-jsx-a11y-x": "^0.2.0",

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import type { ClipboardEvent } from 'react';
 import type { Draft } from '../../lib/db/drafts';
+import { htmlToMarkdown } from '../../lib/format/htmlToMarkdown';
 import FrontmatterForm from './FrontmatterForm';
 import MarkdownPreview from './MarkdownPreview';
 import MediaUploader from './MediaUploader';
@@ -66,6 +68,28 @@ export default function PostEditor({ draft }: Props) {
     };
   }, [draft.id, title, description, tags, bodyMarkdown, coverImagePath]);
 
+  // Pasting from Google Docs (or any rich-text source) puts real HTML on the
+  // clipboard alongside a plain-text fallback. A plain <textarea> would only
+  // ever see the plain-text version — this intercepts the HTML and converts
+  // it to Markdown before it lands, so formatting survives the paste.
+  const handleBodyPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const html = event.clipboardData.getData('text/html');
+    if (!html) return;
+
+    event.preventDefault();
+    const markdown = htmlToMarkdown(html);
+
+    const textarea = event.currentTarget;
+    const { selectionStart, selectionEnd } = textarea;
+    const next = bodyMarkdown.slice(0, selectionStart) + markdown + bodyMarkdown.slice(selectionEnd);
+    setBodyMarkdown(next);
+
+    const cursor = selectionStart + markdown.length;
+    requestAnimationFrame(() => {
+      textarea.setSelectionRange(cursor, cursor);
+    });
+  };
+
   return (
     <div>
       <div className="mb-4 flex items-center justify-between gap-4">
@@ -109,7 +133,8 @@ export default function PostEditor({ draft }: Props) {
             onChange={(event) => {
               setBodyMarkdown(event.target.value);
             }}
-            placeholder="Write in Markdown…"
+            onPaste={handleBodyPaste}
+            placeholder="Write in Markdown… (or paste rich text from Google Docs)"
             className="mt-1 w-full flex-1 resize-none rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-sm text-slate-900 focus:border-slate-500 focus:ring-1 focus:ring-slate-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white"
           />
         </div>
