@@ -1,0 +1,18 @@
+---
+export const prerender = false;
+
+import { env } from 'cloudflare:workers';
+import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import PostEditor from '../../../../components/admin/PostEditor';
+import { getDraft } from '../../../../lib/db/drafts';
+
+const { id } = Astro.params;
+if (!id) return new Response('Not found', { status: 404 });
+
+const draft = await getDraft(env.DB, id);
+if (!draft) return new Response('Draft not found', { status: 404 });
+---
+
+<AdminLayout title={draft.title || 'Untitled draft'}>
+  <PostEditor draft={draft} client:load />
+</AdminLayout>

@@ -1,0 +1,10 @@
+---
+export const prerender = false;
+
+import { env } from 'cloudflare:workers';
+import { getAccessEmail } from '../../../lib/auth/context';
+import { createDraft } from '../../../lib/db/drafts';
+
+const draft = await createDraft(env.DB, getAccessEmail(Astro.locals));
+return Astro.redirect(`/admin/posts/${draft.id}/edit`);
+---

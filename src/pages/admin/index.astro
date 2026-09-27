@@ -1,0 +1,77 @@
+---
+export const prerender = false;
+
+import { env } from 'cloudflare:workers';
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { getAccessEmail } from '../../lib/auth/context';
+import { listDrafts } from '../../lib/db/drafts';
+
+const email = getAccessEmail(Astro.locals);
+const drafts = await listDrafts(env.DB, 'draft');
+const published = await listDrafts(env.DB, 'published');
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+}
+---
+
+<AdminLayout title="Admin">
+  <div class="mb-8 flex items-center justify-between">
+    <div>
+      <h1 class="font-brand text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Admin</h1>
+      <p class="mt-1 text-sm text-slate-500 dark:text-slate-500">
+        Logged in as <strong>{email}</strong>
+      </p>
+    </div>
+    <a
+      href="/admin/posts/new"
+      class="rounded-md border border-slate-900 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-900 hover:text-white dark:border-white dark:text-white dark:hover:bg-white dark:hover:text-slate-900"
+    >
+      New post
+    </a>
+  </div>
+
+  <section class="mb-10">
+    <h2 class="font-brand mb-3 text-xl font-bold tracking-tight text-slate-900 dark:text-white">Drafts</h2>
+    {drafts.length === 0 ? (
+      <p class="text-sm text-slate-500 dark:text-slate-500">No drafts yet.</p>
+    ) : (
+      <ul class="divide-y divide-slate-200 dark:divide-slate-800">
+        {drafts.map((draft) => (
+          <li class="py-3">
+            <a href={`/admin/posts/${draft.id}/edit`} class="font-semibold hover:underline">
+              {draft.title || 'Untitled draft'}
+            </a>
+            <p class="text-xs text-slate-500 dark:text-slate-500">Updated {formatDate(draft.updatedAt)}</p>
+          </li>
+        ))}
+      </ul>
+    )}
+  </section>
+
+  <section>
+    <h2 class="font-brand mb-3 text-xl font-bold tracking-tight text-slate-900 dark:text-white">Published</h2>
+    {published.length === 0 ? (
+      <p class="text-sm text-slate-500 dark:text-slate-500">Nothing published yet.</p>
+    ) : (
+      <ul class="divide-y divide-slate-200 dark:divide-slate-800">
+        {published.map((post) => (
+          <li class="flex items-center justify-between py-3">
+            <div>
+              {post.slug ? (
+                <a href={`/posts/${post.slug}/`} class="font-semibold hover:underline">
+                  {post.title}
+                </a>
+              ) : (
+                <span class="font-semibold">{post.title}</span>
+              )}
+              <p class="text-xs text-slate-500 dark:text-slate-500">
+                Published {post.publishedAt && formatDate(post.publishedAt)}
+              </p>
+            </div>
+          </li>
+        ))}
+      </ul>
+    )}
+  </section>
+</AdminLayout>
