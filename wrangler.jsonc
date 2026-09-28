@@ -43,8 +43,6 @@
     "ACCESS_TEAM_DOMAIN": "dursky-k.cloudflareaccess.com",
     "ACCESS_AUD": "cbbf1870b4f312622c11f1d45c054506be27b74c94ba015909e977da47abf199",
     "ALLOWED_WRITER_EMAILS": "dursky.k@gmail.com",
-    "GITHUB_REPO_OWNER": "krzysztof-durski",
-    "GITHUB_REPO_NAME": "papablog",
   },
   // A single (default, unnamed) environment: Wrangler named environments
   // don't inherit top-level bindings — each one must fully redeclare its own

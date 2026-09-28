@@ -15,57 +15,47 @@ How writing and publishing a post actually works, for future reference. See
 4. **Pasting from Google Docs (or any rich-text source) works.** The editor intercepts the paste
    event, reads the HTML clipboard payload (not just the plain-text fallback), and converts it to
    Markdown via [`htmlToMarkdown`](../src/lib/format/htmlToMarkdown.ts) before inserting it —
-   headings, bold/italic, links, and lists all survive the paste. This exists specifically because
-   Google Docs doesn't use semantic tags (`<strong>`, `<h1>`) for its formatting — it uses inline
-   `style` attributes (`font-weight`, `font-size`), which the converter has dedicated rules for.
+   headings, bold/italic, links, and lists all survive the paste.
 5. Everything **autosaves** ~800ms after you stop typing (`PostEditor.tsx`'s debounced `PUT` to
    `/api/admin/drafts/[id]`). There is no manual "save draft" button — the status line under the
    editor reflects `Saving…` / `Saved at HH:MM:SS` / a save error.
 
-Autosaved drafts only ever live in D1 — nothing is written to git until you explicitly publish.
+## Publishing is now instant — but still a deliberate step
 
-## Publishing
+Everything in this app lives in D1 — there's no git commit or rebuild in the publish path anymore.
+That means clicking **Publish** takes effect immediately: the post is live at its URL the moment the
+request completes, no "check back in a minute" wait.
 
-Clicking **Publish** (`PublishControls.tsx` → `POST /api/admin/publish`) does the following, in
-order (see [architecture.md](./architecture.md#publish-flow-the-one-multi-step-write-path) for the
-full detail):
+It is still an **explicit action**, though, not something autosave triggers on its own. Under the
+hood, D1 keeps two copies of a post's content in the same row: the always-editable fields you're
+typing into (autosaved continuously) and a separate frozen snapshot of what's actually public,
+which only changes when you click **Publish** or **Update & Republish**. So you can safely open an
+already-published post, fix a typo, get distracted, and come back later — the live version stays
+exactly as it was until you explicitly republish. See
+[architecture.md](./architecture.md#two-phase-publish-still--just-within-one-table) for the detail.
 
-1. Validates the draft is actually publishable (title/description/tags pass frontmatter validation,
-   body isn't empty). If not, you get a `422` with the specific validation error — nothing else
-   happens.
+Clicking **Publish** (`PublishControls.tsx` → `POST /api/admin/publish`):
+
+1. Validates the draft is actually publishable (title/description/tags pass validation, body isn't
+   empty). If not, you get an error and nothing changes.
 2. Derives a URL slug from the title (first publish only — republishing an already-live post reuses
    its existing slug so the URL never moves).
-3. **Commits a real Markdown file** to `src/content/posts/<slug>.md` in the GitHub repo via the
-   GitHub Contents API, with a commit message like `feat(post): publish "My Title"`.
-4. Only once that commit succeeds: marks the draft `published` in D1, adds it to the search index,
-   and logs the action.
-
-**Publishing is a git push, not a live CMS write — the post is not visible on the site the instant
-you click Publish.** The commit to `main` triggers Cloudflare Workers Builds to rebuild and redeploy
-the static site, which typically takes about a minute or two. The admin UI's status line reflects
-this ("publishing… live in ~1–2 min") rather than implying an instant update — if you check the live
-URL immediately after publishing and it 404s, that's expected; wait for the rebuild.
+3. Copies your current title/description/body/tags/cover image into the post's live snapshot, marks
+   it `published`, and updates the search index — all in one step.
 
 ## Editing an already-published post
 
 Open it from the drafts list (published posts stay listed, tagged "Published") and edit normally —
-autosave still only touches D1. Clicking **Publish** again commits the updated file to the _same_
-path with an `updatedDate` set, preserving the original `publishDate`. The commit message reads
-`feat(post): update "..."` instead of `publish`.
+autosave keeps saving your working copy, but the live version doesn't change. Click **Update &
+Republish** to push your edits live; the original publish date is preserved, only the "last updated"
+date moves.
 
 ## Unpublishing
 
-**Unpublish** (`POST /api/admin/unpublish`) commits the same file back with `draft: true` in its
-frontmatter — Astro's Content Collections will then exclude it from `getCollection('posts', ({data})
-=> !data.draft)` calls (home page, RSS feed, tag pages, `/api/search`'s index), which is what
-actually removes it from the live site on the next rebuild. The original `publishDate` is preserved
-in the frontmatter (it's still a true fact about the post's history), and the D1 row is marked
-`archived`, not deleted — you can find it again in the drafts list and republish it later, which
-reuses the same slug and file path.
-
-The file itself is never deleted from git by this action — only its `draft` flag flips. Actually
-deleting the Markdown file from the repo is not something the admin UI does; that would be a manual
-git operation outside this app.
+**Unpublish** (`POST /api/admin/unpublish`) immediately removes the post from the public site — the
+home page, tag pages, RSS feed, sitemap, and search all stop showing it right away. The row itself
+isn't deleted; its status becomes `archived` and its last-live snapshot is preserved, so you can find
+it again in the drafts list and republish it later (reusing the same slug and URL).
 
 ## Trashing a draft (never-published only)
 
@@ -78,32 +68,28 @@ with `deleted_at` set, hidden from the normal drafts list). From the trash page 
 - **Delete permanently** — hard-deletes that one row. Cannot be undone.
 - **Empty trash** — hard-deletes every currently-trashed draft in one action. Cannot be undone.
 
-## Frontmatter field reference
+## Field reference
 
-The exact shape every published Markdown file's frontmatter must match
+The exact shape a draft must satisfy before `/api/admin/publish` will accept it
 ([`frontmatterSchema`](../src/lib/schemas/frontmatter.ts)):
 
-| Field           | Required | Notes                                                                                                                                                |
-| --------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `title`         | yes      | 1–200 chars.                                                                                                                                         |
-| `description`   | yes      | 1–300 chars. Used for the meta description, RSS item description, and search results snippet fallback.                                               |
-| `publishDate`   | yes      | Set automatically to the moment of first publish. Never manually editable in the UI.                                                                 |
-| `updatedDate`   | no       | Set automatically on every republish after the first. Omitted on a post's first publish.                                                             |
-| `tags`          | no       | Array of strings, 1–40 chars each. Defaults to `[]`.                                                                                                 |
-| `coverImage`    | no       | Full URL into `/media/...` (an uploaded R2 image) — not a local file path.                                                                           |
-| `coverImageAlt` | no       | Max 200 chars.                                                                                                                                       |
-| `draft`         | yes      | `true` hides the post from all public listings/feeds/search without deleting the file. Always `false` on a live publish; set to `true` by Unpublish. |
+| Field         | Required | Notes                                                                                  |
+| ------------- | -------- | -------------------------------------------------------------------------------------- |
+| `title`       | yes      | 1–200 chars.                                                                           |
+| `description` | yes      | 1–300 chars. Used for the meta description, RSS item description, and search fallback. |
+| `tags`        | no       | Array of strings, 1–40 chars each. Defaults to `[]`.                                   |
+| `coverImage`  | no       | Full URL into `/media/...` (an uploaded R2 image).                                     |
+| Post body     | yes      | Cannot be empty/whitespace-only.                                                       |
 
-Every one of these is validated server-side before a commit is ever made — hand-editing a post's
-frontmatter directly in git is possible (it's just a file), but it must still satisfy this schema or
-Astro's build will fail on it, and it won't show up correctly in `/api/admin/search-reindex` until
-the schema is satisfied.
+`publishDate`/`updatedDate` aren't writer-entered fields — they're derived automatically:
+`published_at` is set the moment a draft is first published and never changes after that;
+`published_updated_at` moves forward on every later republish (see
+[database-schema.md](./database-schema.md) for the exact columns).
 
 ## If search results look stale
 
 The search index (`posts_fts` in D1) is kept in sync automatically at publish/unpublish time.
-If it ever looks out of sync with what's actually live (e.g. after a manual git edit outside the
-admin UI), trigger a full rebuild from an authenticated admin session:
+If it ever looks out of sync, trigger a full rebuild from an authenticated admin session:
 
 ```bash
 curl -X POST https://papablog.durski.dev/api/admin/search-reindex \
@@ -111,5 +97,5 @@ curl -X POST https://papablog.durski.dev/api/admin/search-reindex \
 ```
 
 (Or simply reload `/admin` in a browser and use `fetch` from devtools — the endpoint requires the
-same Access auth as everything else under `/api/admin`.) This rebuilds `posts_fts` entirely from the
-current published content collection, which is always the correct source of truth.
+same Access auth as everything else under `/api/admin`.) This rebuilds `posts_fts` entirely from
+every currently-published post's live snapshot, which is always the correct source of truth.

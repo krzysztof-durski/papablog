@@ -52,28 +52,23 @@ below). It only ever exists via a local `.dev.vars` file (gitignored, see `.dev.
 CI-only secret for Playwright runs. There is no config flag to accidentally leave on — the bypass
 code is dead code in the deployed Worker because the binding it checks doesn't exist there.
 
-## Content validation and the GitHub write path
+## Content validation and the publish snapshot
 
 - **Every API route** that accepts a body validates it against a co-located Zod schema
   (`src/lib/schemas/*.ts`) before doing anything else with it.
-- **Frontmatter** (`title`, `description`, `publishDate`, `tags`, `coverImage`, etc.) is validated
-  against the exact same [`frontmatterSchema`](../src/lib/schemas/frontmatter.ts) in two places that
-  must never drift apart: Astro's Content Collections config (build-time validation of every file
-  already in the repo) and `/api/admin/publish` (validated before a draft is ever turned into a
-  commit).
-- **Slugs are never trusted from client input.** A slug becomes a literal GitHub file path
-  (`src/content/posts/<slug>.md`) — the one place in the app where a writer-influenced value turns
-  directly into a repo path. [`slugify`](../src/lib/slug.ts) derives it server-side from the title,
-  and [`isValidSlug`](../src/lib/slug.ts) (`^[a-z0-9]+(-[a-z0-9]+)*$`, max 100 chars) is re-checked
-  immediately before every publish, regardless of what's stored on the draft.
-- **GitHub API responses are validated, not just cast.** [`contentsApi.ts`](../src/lib/github/contentsApi.ts)
-  runs runtime type guards (`isShaObject`, `isCommitResponse`, etc.) over `fetch().json()`'s `unknown`
-  result before using any field from it — treating GitHub's response the same as any other untrusted
-  external input, not something a TypeScript cast alone makes safe.
-- **Publish is commit-gated, not D1-gated.** D1 state (`drafts.status`, `posts_fts`, `audit_log`)
-  only changes _after_ the GitHub commit succeeds — see [architecture.md](./architecture.md) for the
-  full ordering. This means a failed publish can never leave the app believing something is live
-  that isn't actually in git.
+- **Frontmatter-shaped fields** (`title`, `description`, `tags`, `coverImage`, etc.) are validated
+  against [`frontmatterSchema`](../src/lib/schemas/frontmatter.ts) in `/api/admin/publish` before a
+  draft's working copy is ever copied into the `published_*` snapshot columns that the public site
+  actually reads (see [architecture.md](./architecture.md)).
+- **Slugs are never trusted from client input.** A slug is a public URL segment.
+  [`slugify`](../src/lib/slug.ts) derives it server-side from the title, and
+  [`isValidSlug`](../src/lib/slug.ts) (`^[a-z0-9]+(-[a-z0-9]+)*$`, max 100 chars) is re-checked
+  immediately before every publish, regardless of what's stored on the draft. The `slug` column also
+  carries a database-level `UNIQUE` constraint as a second guarantee.
+- **Publishing is a single atomic D1 write.** `markDraftPublished` flips `status`, sets `slug`, and
+  copies the working-copy fields into the `published_*` snapshot columns in one `UPDATE` statement —
+  there's no multi-step external dependency (like a prior git-commit-based pipeline would have) that
+  could leave D1 in a state where it believes something is live that isn't actually consistent.
 
 ## D1 query safety
 
@@ -104,29 +99,20 @@ code is dead code in the deployed Worker because the binding it checks doesn't e
 ## Secrets and configuration
 
 Plain vars (`wrangler.jsonc` → `vars`, non-secret, fine to see in the repo):
-`ENVIRONMENT`, `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, `ALLOWED_WRITER_EMAILS`, `GITHUB_REPO_OWNER`,
-`GITHUB_REPO_NAME`.
+`ENVIRONMENT`, `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, `ALLOWED_WRITER_EMAILS`.
 
 Secrets (never in the repo — set via `wrangler secret put <NAME>` for production, or a local
 `.dev.vars` file for dev, per `.dev.vars.example`):
 
-| Secret              | Scope                         | Notes                                                                                                                |
-| ------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `GITHUB_PAT`        | Production                    | **Fine-grained PAT, scoped to the `papablog` repo only, Contents read/write.** Never a classic PAT with broad scope. |
-| `E2E_BYPASS_SECRET` | Local dev / CI test runs only | **Must never be set in the production environment** — see the bypass section above.                                  |
+| Secret              | Scope                         | Notes                                                                               |
+| ------------------- | ----------------------------- | ----------------------------------------------------------------------------------- |
+| `E2E_BYPASS_SECRET` | Local dev / CI test runs only | **Must never be set in the production environment** — see the bypass section above. |
 
-### PAT rotation procedure
-
-1. In GitHub → Settings → Developer settings → Fine-grained tokens, generate a new token scoped
-   identically to the current one (repository: `papablog` only; permission: Contents — Read and
-   write; no other repository or account permissions).
-2. `npx wrangler secret put GITHUB_PAT` and paste the new token.
-3. Confirm a test publish/unpublish succeeds against production.
-4. Revoke the old token in GitHub.
-
-Rotate immediately (not on the routine schedule) if: the token may have been exposed in a log,
-screenshot, or shared terminal; a Cloudflare account collaborator with `wrangler secret` access is
-removed; or GitHub flags anomalous use of the token.
+There is no production-required secret today — publishing writes directly to D1, with no external
+API to authenticate against. (An earlier version of this app required a `GITHUB_PAT` secret for a
+GitHub-commit-based publish pipeline; that pipeline no longer exists. If a `GITHUB_PAT` secret is
+still set on the production Worker from that setup, it's unused dead weight — revoke the token in
+GitHub and run `wrangler secret delete GITHUB_PAT`.)
 
 ## Headers, rate limiting, dependency hygiene — not yet implemented
 

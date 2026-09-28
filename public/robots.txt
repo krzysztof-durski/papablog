@@ -3,4 +3,4 @@ Allow: /
 Disallow: /admin
 Disallow: /api
 
-Sitemap: https://papablog.durski.dev/sitemap-index.xml
+Sitemap: https://papablog.durski.dev/sitemap.xml

@@ -12,8 +12,9 @@ configured in [`wrangler.jsonc`](../wrangler.jsonc).
 
 - A Cloudflare account with the target domain's DNS already on Cloudflare (Access requires this —
   it cannot protect a path on `*.workers.dev`).
-- A GitHub repository for the project (source of truth for published posts — see
-  [architecture.md](./architecture.md)).
+- A GitHub repository for the project's _code_ (deploys via Workers Builds git integration — see
+  [Ongoing deploys](#ongoing-deploys) below). Published post _content_ lives entirely in D1, not
+  this repo — see [architecture.md](./architecture.md).
 - Node.js ≥ 22.12 and `wrangler` (already a project dependency — use `npx wrangler`, not a global
   install, so the version always matches what's pinned in `package.json`).
 
@@ -30,7 +31,7 @@ The custom domain is declared directly in [`wrangler.jsonc`](../wrangler.jsonc):
 subdomain, so leaving it enabled would give `/admin` an unprotected back door.
 
 For a new domain: add the domain to Cloudflare (if not already), update the `pattern` above and
-`astro.config.mjs`'s `site` field to match, then a normal deploy (§7) provisions the custom domain
+`astro.config.mjs`'s `site` field to match, then a normal deploy (§6) provisions the custom domain
 route.
 
 ## 2. D1 database
@@ -83,48 +84,28 @@ Access → Applications**:
 Set both as plain vars in `wrangler.jsonc` (`vars.ACCESS_TEAM_DOMAIN`, `vars.ACCESS_AUD`) — they are
 not secret, just configuration, safe to commit.
 
-## 5. GitHub PAT for the publish pipeline
-
-The publish pipeline commits directly to this repo via GitHub's Contents API (see
-[architecture.md](./architecture.md)), authenticated with a fine-grained PAT.
-
-1. GitHub → Settings → Developer settings → **Fine-grained personal access tokens** → Generate new.
-2. **Repository access**: Only select repositories → this one repo only.
-3. **Permissions**: Repository → **Contents: Read and write**. Nothing else.
-4. Generate, copy the token immediately (shown once).
-5. Set it as a Worker secret (never a plain var — this grants write access to the repo):
-
-```bash
-npx wrangler secret put GITHUB_PAT
-```
-
-Also confirm `wrangler.jsonc`'s `vars.GITHUB_REPO_OWNER` / `vars.GITHUB_REPO_NAME` match the actual
-repo. Without `GITHUB_PAT` set, every publish/unpublish attempt fails with a `502` from
-`/api/admin/publish` — this is the one secret the app cannot run without.
-
-Rotation procedure: see [security.md](./security.md#pat-rotation-procedure).
-
-## 6. Remaining vars and secrets
+## 5. Vars and secrets
 
 Full list, cross-referenced with [security.md](./security.md#secrets-and-configuration):
 
 ```bash
 # Plain vars — already in wrangler.jsonc, no action needed unless changing them
-# ENVIRONMENT, ACCESS_TEAM_DOMAIN, ACCESS_AUD, ALLOWED_WRITER_EMAILS,
-# GITHUB_REPO_OWNER, GITHUB_REPO_NAME
-
-# Secret — required for the app to function at all
-npx wrangler secret put GITHUB_PAT
+# ENVIRONMENT, ACCESS_TEAM_DOMAIN, ACCESS_AUD, ALLOWED_WRITER_EMAILS
 
 # E2E_BYPASS_SECRET must NEVER be set in production — see security.md.
 ```
+
+There is no required secret for the app to function today — publishing writes to D1 directly, with
+no external API dependency. (An earlier version required a `GITHUB_PAT` secret for a
+GitHub-commit-based publish pipeline; that's gone. If `GITHUB_PAT` is still set on this Worker from
+that earlier setup, it's inert — `npx wrangler secret delete GITHUB_PAT` to clean it up.)
 
 `ALLOWED_WRITER_EMAILS` is a comma-separated list, matched case-insensitively against the verified
 Access JWT's email claim (see `src/lib/auth/allowlist.ts`) — update it in `wrangler.jsonc` and
 redeploy if the set of writers ever changes, and keep the Access application's own policy (step 4)
 in sync with it.
 
-## 7. Deploying
+## 6. Deploying
 
 ```bash
 npx wrangler deploy
@@ -138,18 +119,18 @@ to avoid an auto-provisioning conflict on redeploy — see the comment there).
 
 ## Ongoing deploys
 
-**Cloudflare Workers Builds** (git integration) is the actual continuous-deployment path — connect
-the Worker to this GitHub repo in the dashboard (**Workers & Pages → papablog → Settings → Builds**),
-pointing at the `main` branch with the default build command (`npx wrangler deploy` equivalent,
-auto-detected for an Astro + Cloudflare-adapter project). Once connected, every push to `main` —
-including the automated commits `/api/admin/publish` makes — triggers a rebuild and redeploy
-automatically. There is no separate GitHub Actions deploy workflow; `npx wrangler deploy` from a
-local machine (§7) is the manual/recovery path, not the normal one.
+**Cloudflare Workers Builds** (git integration) is the actual continuous-deployment path for _code_
+changes — connect the Worker to this GitHub repo in the dashboard (**Workers & Pages → papablog →
+Settings → Builds**), pointing at the `main` branch with the default build command (`npx wrangler
+deploy` equivalent, auto-detected for an Astro + Cloudflare-adapter project). Once connected, every
+push to `main` triggers a rebuild and redeploy automatically. There is no separate GitHub Actions
+deploy workflow; `npx wrangler deploy` from a local machine (§6) is the manual/recovery path, not the
+normal one.
 
-**Note**: this means every single published post triggers a full site rebuild+redeploy, not just an
-incremental content update. For a blog at this scale that's an acceptable tradeoff for the
-simplicity of "git push is the only deploy trigger" — worth reconsidering only if publish frequency
-or build time ever become a real problem.
+**Publishing a post is unrelated to this and does not trigger a deploy.** Since posts live entirely
+in D1 (see [architecture.md](./architecture.md)), clicking Publish in `/admin` writes directly to the
+database and is live immediately — no rebuild, no wait. Workers Builds only fires on pushes that
+change the app's _code_.
 
 ## Go-live smoke test checklist
 
@@ -163,11 +144,11 @@ After a fresh deploy (or whenever touching auth/publish config), verify manually
 - [ ] Logging in with a non-allow-listed email (if testable) is rejected — either by Access's own
       policy or, if it somehow gets through Access, by the app's `403` from `isAllowedWriter`.
 - [ ] Create a draft, edit it, confirm autosave (status line updates to "Saved at ...").
-- [ ] Publish it; confirm a real commit appears in the GitHub repo; wait for Workers Builds to
-      finish; confirm the post is live at its slug URL and appears in `/`, `/tags`, `/rss.xml`, and
-      `/api/search`.
-- [ ] Unpublish it; confirm the commit sets `draft: true` and the post disappears from public
-      listings after the rebuild.
+- [ ] Publish it; confirm it's immediately live at its slug URL and appears in `/`, `/tags`,
+      `/rss.xml`, `/sitemap.xml`, and `/api/search` — no wait.
+- [ ] Edit the published post's body without republishing; confirm the live page is unchanged; click
+      Update & Republish; confirm the live page now reflects the edit.
+- [ ] Unpublish it; confirm the post disappears from all public listings immediately.
 - [ ] Trash an unpublished draft, confirm it disappears from `/admin` and appears in `/admin/trash`;
       restore it; confirm it's back.
 - [ ] Upload a cover image; confirm it's reachable at its `/media/...` URL with a long-lived

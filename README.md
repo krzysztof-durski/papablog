@@ -11,20 +11,21 @@ editor only), and [Tailwind CSS](https://tailwindcss.com), deployed on
 
 ## How this is put together
 
-- **Public site** — static/prerendered Astro pages. Published post content
-  lives as markdown files in `src/content/posts/`, read via Astro Content
-  Collections — git is the source of truth, not the database.
+- **Public site** — server-rendered Astro pages reading directly from D1
+  (posts, tags, search, RSS, sitemap); a few static pages (About, legal)
+  are prerendered. D1 is the sole source of truth for post content — there
+  is no git-backed content store.
 - **Search** — a D1 [FTS5](https://sqlite.org/fts5.html) index (`/api/search`,
   `/search`) kept in sync with published posts; works with or without
   JavaScript.
 - **Admin** (`/admin`) — gated by [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/access-controls/)
   (email one-time-PIN login), not a custom auth system. A React-based editor
-  autosaves drafts to D1; publishing commits the post to this repo via the
-  GitHub API, which is what actually makes it live.
+  autosaves a working draft to D1; clicking Publish snapshots that draft as
+  the live post, instantly — no rebuild, no external commit.
 - **Newsletter** — planned, not yet built.
 
-See [`docs/architecture.md`](docs/architecture.md) _(coming soon)_ for more,
-and [`docs/prompts/`](docs/prompts/) for a running log of the AI-assisted
+See [`docs/architecture.md`](docs/architecture.md) for more, and
+[`docs/prompts/`](docs/prompts/) for a running log of the AI-assisted
 sessions that built this project.
 
 ## Local development
@@ -57,9 +58,8 @@ npx wrangler deploy
 ```
 
 Requires a Cloudflare account with a D1 database, R2 bucket, and KV
-namespace already provisioned (see `wrangler.jsonc`), plus a `GITHUB_PAT`
-secret (`wrangler secret put GITHUB_PAT`) scoped to this repo's contents,
-for the publish pipeline.
+namespace already provisioned (see `wrangler.jsonc`). See
+[`docs/deployment.md`](docs/deployment.md) for the full runbook.
 
 ## License
 

@@ -37,7 +37,6 @@ describe('frontmatterSchema', () => {
       updatedDate: '2026-02-01',
       tags: ['cloudflare', 'astro'],
       coverImage: 'https://media.papablog.durski.dev/posts/example/cover.webp',
-      coverImageAlt: 'A screenshot of the dashboard',
       draft: true,
     });
 

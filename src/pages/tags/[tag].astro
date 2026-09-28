@@ -1,32 +1,16 @@
 ---
-export const prerender = true;
+export const prerender = false;
 
-import { getCollection, type CollectionEntry } from 'astro:content';
+import { env } from 'cloudflare:workers';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import PostCard from '../../components/site/PostCard.astro';
+import { listPublishedPosts } from '../../lib/db/posts';
 
-interface Props {
-  posts: CollectionEntry<'posts'>[];
-}
+const { tag } = Astro.params;
+if (!tag) return new Response('Not found', { status: 404 });
 
-export async function getStaticPaths() {
-  const posts = await getCollection('posts', ({ data }) => !data.draft);
-  const tags = new Set(posts.flatMap((post) => post.data.tags));
-
-  return Array.from(tags).map((tag) => ({
-    params: { tag },
-    props: {
-      posts: posts
-        .filter((post) => post.data.tags.includes(tag))
-        .sort((a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf()),
-    },
-  }));
-}
-
-// Always present at runtime: this is a prerendered dynamic route and every
-// generated path came from a real tag string in getStaticPaths above.
-const tag = Astro.params.tag as string;
-const { posts } = Astro.props;
+const allPosts = await listPublishedPosts(env.DB);
+const posts = allPosts.filter((post) => post.tags.includes(tag));
 ---
 
 <BaseLayout
@@ -37,9 +21,13 @@ const { posts } = Astro.props;
   <h1 class="font-brand mb-6 border-b border-slate-200 pb-4 text-3xl font-bold tracking-tight text-slate-900 dark:border-slate-800 dark:text-white">
     {tag}
   </h1>
-  <div class="divide-y divide-slate-200 dark:divide-slate-800">
-    {posts.map((post) => (
-      <PostCard post={post} />
-    ))}
-  </div>
+  {posts.length === 0 ? (
+    <p class="text-slate-600 dark:text-slate-400">No posts tagged "{tag}" yet.</p>
+  ) : (
+    <div class="divide-y divide-slate-200 dark:divide-slate-800">
+      {posts.map((post) => (
+        <PostCard post={post} />
+      ))}
+    </div>
+  )}
 </BaseLayout>

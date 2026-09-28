@@ -1,15 +1,17 @@
 ---
-import type { CollectionEntry } from 'astro:content';
+import type { PublishedPost } from '../lib/db/posts';
 import BaseLayout from './BaseLayout.astro';
 import TagBadge from '../components/site/TagBadge.astro';
 
 interface Props {
-  post: CollectionEntry<'posts'>;
+  post: PublishedPost;
 }
 
 const { post } = Astro.props;
-const breadcrumbs = [{ label: 'Home', href: '/' }, { label: post.data.title }];
-const { title, description, publishDate, updatedDate, tags, coverImage, coverImageAlt } = post.data;
+const breadcrumbs = [{ label: 'Home', href: '/' }, { label: post.title }];
+const { title, description, tags, coverImagePath } = post;
+const publishDate = new Date(post.publishedAt);
+const updatedDate = post.updatedAt !== post.publishedAt ? new Date(post.updatedAt) : null;
 
 const formattedPublishDate = publishDate.toLocaleDateString('en-US', {
   year: 'numeric',
@@ -23,7 +25,7 @@ const formattedUpdatedDate = updatedDate?.toLocaleDateString('en-US', {
 });
 ---
 
-<BaseLayout title={title} description={description} ogImage={coverImage} breadcrumbs={breadcrumbs}>
+<BaseLayout title={title} description={description} ogImage={coverImagePath ?? undefined} breadcrumbs={breadcrumbs}>
   <article>
     <header class="mb-8 border-b border-slate-200 pb-8 dark:border-slate-800">
       <h1 class="font-brand text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl dark:text-white">{title}</h1>
@@ -41,7 +43,7 @@ const formattedUpdatedDate = updatedDate?.toLocaleDateString('en-US', {
           </>
         )}
       </div>
-      {coverImage && <img src={coverImage} alt={coverImageAlt ?? ''} class="mt-6 w-full" />}
+      {coverImagePath && <img src={coverImagePath} alt="" class="mt-6 w-full" />}
     </header>
 
     <div class="prose prose-slate max-w-none dark:prose-invert">

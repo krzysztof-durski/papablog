@@ -11,17 +11,24 @@ export interface Draft {
   tags: string[];
   coverImagePath: string | null;
   status: DraftStatus;
-  githubPath: string | null;
-  githubSha: string | null;
   createdBy: string;
   updatedBy: string;
   createdAt: string;
   updatedAt: string;
   publishedAt: string | null;
   deletedAt: string | null;
+  // A frozen snapshot of what's actually live, distinct from the editable
+  // fields above — see src/lib/db/posts.ts and markDraftPublished. Null
+  // until the draft has been published at least once.
+  publishedTitle: string | null;
+  publishedDescription: string | null;
+  publishedBodyMarkdown: string | null;
+  publishedTags: string[] | null;
+  publishedCoverImagePath: string | null;
+  publishedUpdatedAt: string | null;
 }
 
-interface DraftRow {
+export interface DraftRow {
   id: string;
   slug: string | null;
   title: string;
@@ -30,41 +37,51 @@ interface DraftRow {
   tags: string;
   cover_image_path: string | null;
   status: string;
-  github_path: string | null;
-  github_sha: string | null;
   created_by: string;
   updated_by: string;
   created_at: string;
   updated_at: string;
   published_at: string | null;
   deleted_at: string | null;
+  published_title: string | null;
+  published_description: string | null;
+  published_body_markdown: string | null;
+  published_tags: string | null;
+  published_cover_image_path: string | null;
+  published_updated_at: string | null;
 }
 
-function rowToDraft(row: DraftRow): Draft {
-  let tags: string[];
+function parseTagsJson(value: string | null): string[] | null {
+  if (value === null) return null;
   try {
-    tags = JSON.parse(row.tags) as string[];
+    return JSON.parse(value) as string[];
   } catch {
-    tags = [];
+    return null;
   }
+}
 
+export function rowToDraft(row: DraftRow): Draft {
   return {
     id: row.id,
     slug: row.slug,
     title: row.title,
     description: row.description,
     bodyMarkdown: row.body_markdown,
-    tags,
+    tags: parseTagsJson(row.tags) ?? [],
     coverImagePath: row.cover_image_path,
     status: row.status as DraftStatus,
-    githubPath: row.github_path,
-    githubSha: row.github_sha,
     createdBy: row.created_by,
     updatedBy: row.updated_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     publishedAt: row.published_at,
     deletedAt: row.deleted_at,
+    publishedTitle: row.published_title,
+    publishedDescription: row.published_description,
+    publishedBodyMarkdown: row.published_body_markdown,
+    publishedTags: parseTagsJson(row.published_tags),
+    publishedCoverImagePath: row.published_cover_image_path,
+    publishedUpdatedAt: row.published_updated_at,
   };
 }
 
@@ -201,38 +218,52 @@ export async function purgeAllTrashedDrafts(db: D1Database): Promise<number> {
 }
 
 /**
- * Called only after a GitHub commit has already succeeded (see
- * /api/admin/publish) — this is pure bookkeeping, never the thing that
- * decides whether a post is "really" published. published_at is set once
- * and preserved across republishes (COALESCE), so re-editing and
- * re-publishing an already-live post doesn't reset its original date.
+ * This is the moment a draft's current edits become the live, public
+ * snapshot — D1 is the sole source of truth (see docs/architecture.md), so
+ * unlike a git-backed pipeline there's no external commit this depends on.
+ * Copies the editable title/description/body_markdown/tags/cover_image_path
+ * columns into their published_* counterparts, which is what the public
+ * site actually reads (src/lib/db/posts.ts) — so further autosaved edits
+ * after this point do NOT go live until Publish/Update is clicked again.
+ *
+ * A single JS-computed timestamp (not several separate `strftime('now')`
+ * calls) is bound for every "now" column below, so published_at and
+ * published_updated_at are guaranteed byte-identical on a first publish —
+ * that equality is exactly how callers distinguish "just published" from
+ * "has been updated since" (see PostLayout.astro).
  */
 export async function markDraftPublished(
   db: D1Database,
   id: string,
-  fields: { slug: string; githubPath: string; githubSha: string },
+  fields: { slug: string },
   updatedBy: string,
 ): Promise<Draft | null> {
+  const now = new Date().toISOString();
+
   const row = await db
     .prepare(
       `UPDATE drafts
        SET status = 'published',
            slug = ?1,
-           github_path = ?2,
-           github_sha = ?3,
-           updated_by = ?4,
-           updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
-           published_at = COALESCE(published_at, strftime('%Y-%m-%dT%H:%M:%fZ','now'))
-       WHERE id = ?5
+           published_title = title,
+           published_description = description,
+           published_body_markdown = body_markdown,
+           published_tags = tags,
+           published_cover_image_path = cover_image_path,
+           published_updated_at = ?2,
+           updated_by = ?3,
+           updated_at = ?2,
+           published_at = COALESCE(published_at, ?2)
+       WHERE id = ?4
        RETURNING *`,
     )
-    .bind(fields.slug, fields.githubPath, fields.githubSha, updatedBy, id)
+    .bind(fields.slug, now, updatedBy, id)
     .first<DraftRow>();
 
   return row ? rowToDraft(row) : null;
 }
 
-/** Marks a previously-published post as withdrawn. Retains slug/github_path/published_at as history — only status changes. */
+/** Marks a previously-published post as withdrawn. Retains slug/published_at/published_* snapshot as history — only status changes. */
 export async function markDraftUnpublished(db: D1Database, id: string, updatedBy: string): Promise<Draft | null> {
   const row = await db
     .prepare(

@@ -6,11 +6,8 @@ declare namespace Cloudflare {
   interface Env {
     DB: D1Database;
     MEDIA: R2Bucket;
-    // Fine-grained PAT, Contents read/write scoped to this one repo only —
-    // set via `wrangler secret put GITHUB_PAT` in production, .dev.vars locally.
-    GITHUB_PAT: string;
     // Local-dev/test-only: set via .dev.vars, never a real deployed secret
-    // (see docs/security.md once written, and src/middleware.ts).
+    // (see docs/security.md and src/middleware.ts).
     E2E_BYPASS_SECRET?: string;
   }
 }

@@ -1,14 +1,15 @@
 ---
-export const prerender = true;
+export const prerender = false;
 
-import { getCollection } from 'astro:content';
+import { env } from 'cloudflare:workers';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import TagBadge from '../../components/site/TagBadge.astro';
+import { listPublishedPosts } from '../../lib/db/posts';
 
-const posts = await getCollection('posts', ({ data }) => !data.draft);
+const posts = await listPublishedPosts(env.DB);
 const tagCounts = new Map<string, number>();
 for (const post of posts) {
-  for (const tag of post.data.tags) {
+  for (const tag of post.tags) {
     tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
   }
 }

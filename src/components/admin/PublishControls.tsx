@@ -72,7 +72,7 @@ export default function PublishControls({ draftId, status, slug, onChange }: Pro
             void callEndpoint(
               'publish',
               'published',
-              status === 'published' ? 'Updated and republished.' : 'Published — live in a minute or two.',
+              status === 'published' ? 'Updated and republished.' : 'Published — live now.',
             );
           }}
           className={primaryButtonClass}
@@ -86,7 +86,7 @@ export default function PublishControls({ draftId, status, slug, onChange }: Pro
           type="button"
           disabled={busy}
           onClick={() => {
-            void callEndpoint('publish', 'published', 'Republished — live in a minute or two.');
+            void callEndpoint('publish', 'published', 'Republished — live now.');
           }}
           className={primaryButtonClass}
         >

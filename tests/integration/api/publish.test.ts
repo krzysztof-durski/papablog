@@ -1,9 +1,10 @@
 import type { APIContext } from 'astro';
 import { env } from 'cloudflare:workers';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { POST as publishHandler } from '../../../src/pages/api/admin/publish';
 import { POST as unpublishHandler } from '../../../src/pages/api/admin/unpublish';
 import { createDraft, getDraft, updateDraft } from '../../../src/lib/db/drafts';
+import { getPublishedPostBySlug } from '../../../src/lib/db/posts';
 import { listAuditLog } from '../../../src/lib/db/auditLog';
 import { searchPosts } from '../../../src/lib/db/postsFts';
 
@@ -25,38 +26,14 @@ function makeContext(body: unknown): APIContext {
   return context as unknown as APIContext;
 }
 
-type FetchMock = ReturnType<typeof vi.fn<(input: string, init?: RequestInit) => Promise<Response>>>;
-let fetchMock: FetchMock;
-
 beforeEach(async () => {
   await env.DB.prepare('DELETE FROM drafts').run();
   await env.DB.prepare('DELETE FROM audit_log').run();
   await env.DB.prepare('DELETE FROM posts_fts').run();
-  fetchMock = vi.fn();
-  vi.stubGlobal('fetch', fetchMock);
 });
 
-function mockGithubSuccess() {
-  fetchMock.mockImplementation((_input, init) => {
-    if (!init || init.method === undefined) {
-      // getFileSha (GET) — pretend the file doesn't exist yet.
-      return Promise.resolve(new Response('Not Found', { status: 404 }));
-    }
-    return Promise.resolve(
-      new Response(
-        JSON.stringify({
-          content: { sha: 'new-blob-sha', html_url: 'https://github.com/dursky/papablog/blob/main/x.md' },
-          commit: { sha: 'commit-sha-1' },
-        }),
-        { status: 201 },
-      ),
-    );
-  });
-}
-
 describe('POST /api/admin/publish', () => {
-  it('publishes a complete draft: commits to GitHub, marks it published, indexes it, and audit-logs it', async () => {
-    mockGithubSuccess();
+  it('publishes a complete draft: snapshots it as live, indexes it, and audit-logs it', async () => {
     const draft = await createDraft(env.DB, WRITER);
     await updateDraft(
       env.DB,
@@ -76,8 +53,12 @@ describe('POST /api/admin/publish', () => {
     const published = await getDraft(env.DB, draft.id);
     expect(published?.status).toBe('published');
     expect(published?.slug).toBe('my-first-post');
-    expect(published?.githubPath).toBe('src/content/posts/my-first-post.md');
     expect(published?.publishedAt).toBeTruthy();
+    expect(published?.publishedUpdatedAt).toBe(published?.publishedAt);
+
+    const post = await getPublishedPostBySlug(env.DB, 'my-first-post');
+    expect(post?.title).toBe('My First Post');
+    expect(post?.bodyMarkdown).toBe('# Hello\n\nBody.');
 
     const searchResults = await searchPosts(env.DB, 'Hello');
     expect(searchResults.map((r) => r.slug)).toContain('my-first-post');
@@ -86,14 +67,13 @@ describe('POST /api/admin/publish', () => {
     expect(auditEntries[0]).toMatchObject({ action: 'post.publish', targetType: 'post', targetId: 'my-first-post' });
   });
 
-  it('rejects an incomplete draft (empty body) without ever calling GitHub', async () => {
+  it('rejects an incomplete draft (empty body)', async () => {
     const draft = await createDraft(env.DB, WRITER);
     await updateDraft(env.DB, draft.id, { title: 'Title only', description: 'Some description here.' }, WRITER);
 
     const res = await publishHandler(makeContext({ draftId: draft.id }));
 
     expect(res.status).toBe(422);
-    expect(fetchMock).not.toHaveBeenCalled();
     const stillDraft = await getDraft(env.DB, draft.id);
     expect(stillDraft?.status).toBe('draft');
   });
@@ -103,31 +83,7 @@ describe('POST /api/admin/publish', () => {
     expect(res.status).toBe(404);
   });
 
-  it('leaves D1 and the audit log untouched when the GitHub commit fails', async () => {
-    fetchMock.mockImplementation((_input, init) => {
-      if (!init || init.method === undefined) return Promise.resolve(new Response('Not Found', { status: 404 }));
-      return Promise.resolve(new Response('Internal Server Error', { status: 500 }));
-    });
-    const draft = await createDraft(env.DB, WRITER);
-    await updateDraft(
-      env.DB,
-      draft.id,
-      { title: 'Will Fail', description: 'A description long enough.', bodyMarkdown: 'Body.' },
-      WRITER,
-    );
-
-    const res = await publishHandler(makeContext({ draftId: draft.id }));
-
-    expect(res.status).toBe(502);
-    const stillDraft = await getDraft(env.DB, draft.id);
-    expect(stillDraft?.status).toBe('draft');
-    expect(stillDraft?.slug).toBeNull();
-    expect(await listAuditLog(env.DB)).toHaveLength(0);
-    expect(await searchPosts(env.DB, 'Fail')).toHaveLength(0);
-  });
-
-  it('reuses the existing slug and github path on a republish rather than deriving a new one', async () => {
-    mockGithubSuccess();
+  it('reuses the existing slug on a republish rather than deriving a new one', async () => {
     const draft = await createDraft(env.DB, WRITER);
     await updateDraft(
       env.DB,
@@ -144,13 +100,34 @@ describe('POST /api/admin/publish', () => {
     expect(res.status).toBe(200);
     const republished = await getDraft(env.DB, draft.id);
     expect(republished?.slug).toBe('original-title');
-    expect(republished?.githubPath).toBe('src/content/posts/original-title.md');
+  });
+
+  it('does not publish edits made after the last Publish click until Publish is clicked again', async () => {
+    const draft = await createDraft(env.DB, WRITER);
+    await updateDraft(
+      env.DB,
+      draft.id,
+      { title: 'Two Phase', description: 'A description long enough.', bodyMarkdown: 'Original body.' },
+      WRITER,
+    );
+    await publishHandler(makeContext({ draftId: draft.id }));
+
+    // Edit the body without re-publishing — the live post must be unaffected.
+    await updateDraft(env.DB, draft.id, { bodyMarkdown: 'Edited but not yet published.' }, WRITER);
+
+    const liveBefore = await getPublishedPostBySlug(env.DB, 'two-phase');
+    expect(liveBefore?.bodyMarkdown).toBe('Original body.');
+
+    await publishHandler(makeContext({ draftId: draft.id }));
+
+    const liveAfter = await getPublishedPostBySlug(env.DB, 'two-phase');
+    expect(liveAfter?.bodyMarkdown).toBe('Edited but not yet published.');
+    expect(liveAfter?.updatedAt).not.toBe(liveAfter?.publishedAt);
   });
 });
 
 describe('POST /api/admin/unpublish', () => {
-  it('withdraws a published post: commits draft:true, removes it from search, archives the row', async () => {
-    mockGithubSuccess();
+  it('withdraws a published post: removes it from search, archives the row', async () => {
     const draft = await createDraft(env.DB, WRITER);
     await updateDraft(
       env.DB,
@@ -168,6 +145,7 @@ describe('POST /api/admin/unpublish', () => {
     expect(archived?.status).toBe('archived');
     expect(archived?.slug).toBe('to-withdraw'); // preserved as history
     expect(await searchPosts(env.DB, 'Withdraw')).toHaveLength(0);
+    expect(await getPublishedPostBySlug(env.DB, 'to-withdraw')).toBeNull();
   });
 
   it('refuses to unpublish a draft that was never published', async () => {
@@ -176,6 +154,5 @@ describe('POST /api/admin/unpublish', () => {
     const res = await unpublishHandler(makeContext({ draftId: draft.id }));
 
     expect(res.status).toBe(409);
-    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

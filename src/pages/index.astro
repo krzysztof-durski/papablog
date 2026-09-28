@@ -1,12 +1,12 @@
 ---
-export const prerender = true;
+export const prerender = false;
 
-import { getCollection } from 'astro:content';
+import { env } from 'cloudflare:workers';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import PostCard from '../components/site/PostCard.astro';
+import { listPublishedPosts } from '../lib/db/posts';
 
-const allPosts = await getCollection('posts', ({ data }) => import.meta.env.DEV || !data.draft);
-const posts = allPosts.sort((a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf());
+const posts = await listPublishedPosts(env.DB);
 ---
 
 <BaseLayout

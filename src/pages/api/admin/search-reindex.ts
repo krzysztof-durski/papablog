@@ -1,28 +1,28 @@
 import type { APIRoute } from 'astro';
 import { env } from 'cloudflare:workers';
-import { getCollection } from 'astro:content';
 import { getAccessEmail } from '../../../lib/auth/context';
 import { recordAuditLog } from '../../../lib/db/auditLog';
+import { listPublishedPosts } from '../../../lib/db/posts';
 import { reindexAllPosts } from '../../../lib/db/postsFts';
 
 export const prerender = false;
 
-// Full rebuild from git (the actual source of truth) — a manual drift-
-// recovery safety valve for if the incremental upsert in /api/admin/publish
-// ever fails silently or the repo is edited directly, bypassing the admin.
+// A manual drift-recovery safety valve for if the incremental upsert in
+// /api/admin/publish ever fails silently or posts_fts otherwise falls out
+// of sync with the drafts table (the actual source of truth).
 export const POST: APIRoute = async ({ locals }) => {
   const actorEmail = getAccessEmail(locals);
 
-  const posts = await getCollection('posts', ({ data }) => !data.draft);
+  const posts = await listPublishedPosts(env.DB);
 
   await reindexAllPosts(
     env.DB,
     posts.map((post) => ({
-      slug: post.id,
-      title: post.data.title,
-      body: post.body ?? '',
-      tags: post.data.tags,
-      publishedAt: post.data.publishDate.toISOString(),
+      slug: post.slug,
+      title: post.title,
+      body: post.bodyMarkdown,
+      tags: post.tags,
+      publishedAt: post.publishedAt,
     })),
   );
 

@@ -17,11 +17,10 @@ Run everything: `npm test` (Vitest) / `npm run test:watch` for local iteration.
 ### Unit (`tests/unit/lib/`)
 
 Pure functions with no bindings: `allowlist.test.ts`, `slug.test.ts`, `fts-query.test.ts`,
-`validate-image.test.ts`, `content-hash.test.ts`, `build-post-file.test.ts`,
-`frontmatter-schema.test.ts`, `contents-api.test.ts` (GitHub API client against `fetch` mocks),
+`validate-image.test.ts`, `content-hash.test.ts`, `frontmatter-schema.test.ts`,
 `snippet-html.test.ts`. These run fast, with no Miniflare startup cost, and are where edge cases
 belong: FTS5 special characters in search input, path-traversal attempts in slugs, malformed MIME
-types, GitHub API error-shape handling.
+types.
 
 ### Integration (`tests/integration/`)
 
@@ -34,6 +33,11 @@ one that ships.
   and the trash flow (trash/restore/list-trashed/purge/purge-all), including the guard tests that
   prove a published draft can never be trashed or purged by these functions regardless of what
   `deleted_at` is manually set to.
+- `db/posts.test.ts` — the published-snapshot read layer (`getPublishedPostBySlug`/
+  `listPublishedPosts`): a never-published draft is invisible even if it has a slug, an unpublished
+  post disappears immediately, and — the key invariant of the two-phase publish design (see
+  [architecture.md](./architecture.md)) — editing a draft's working-copy fields after publish does
+  _not_ change what a public read returns until `markDraftPublished` runs again.
 - `db/posts-fts.test.ts` — FTS5 upsert/remove/reindex/search against a real FTS5 virtual table
   (FTS5 syntax and ranking behavior can't be meaningfully faked with a mock).
 - `db/audit-log.test.ts` — write/list round-trip, including JSON metadata parse failure handling.
@@ -43,10 +47,11 @@ one that ships.
   vs. incorrect secret/email — using `jose`'s `createLocalJWKSet` with a test keypair instead of a
   real network fetch to Access's JWKS endpoint (`verifyAccessJwt`'s `jwks` parameter is injectable
   specifically for this).
-- `api/publish.test.ts` — the full publish route against real D1, with the GitHub Contents API
-  itself mocked (it's the one genuinely external dependency), asserting: D1 state only transitions
-  after a successful mocked commit, a failed commit leaves the draft untouched, `posts_fts` is
-  upserted, and an audit log row is written with the right metadata.
+- `api/publish.test.ts` — the full publish/unpublish routes against real D1: a complete publish
+  snapshots the draft's current fields and indexes it, an incomplete draft is rejected before any
+  state changes, a republish reuses the existing slug, editing a published post's working copy
+  doesn't move the live snapshot until republished, and unpublishing removes it from search while
+  preserving the row as history.
 
 ### Why real D1/R2 instead of mocks
 
@@ -55,12 +60,8 @@ unique-index violations, `strftime`-based timestamp defaults — are exactly the
 have to reimplement to be worth anything, and any drift between a mock's behavior and D1's real
 behavior is precisely the kind of bug that only shows up in production. Miniflare runs the real
 `workerd` SQLite implementation, so integration tests exercise the actual engine at effectively no
-cost beyond Miniflare's (fast) startup.
-
-The one thing that _is_ mocked deliberately is the GitHub Contents API — it's a genuine external
-network dependency with rate limits and side effects on a real repo, so `publish.test.ts` and
-`unpublish.test.ts`-equivalent coverage mock `fetch` for that call specifically while everything else
-(D1 reads/writes, FTS5, audit log) stays real.
+cost beyond Miniflare's (fast) startup. There's no external network dependency left in the
+publish/unpublish path to mock — everything the publish route touches is real D1 in these tests.
 
 ## Why the auth test-bypass is safe to rely on in tests
 

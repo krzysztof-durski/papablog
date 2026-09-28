@@ -5,8 +5,6 @@ import { getAccessEmail } from '../../../lib/auth/context';
 import { recordAuditLog } from '../../../lib/db/auditLog';
 import { getDraft, markDraftPublished } from '../../../lib/db/drafts';
 import { upsertPostInIndex } from '../../../lib/db/postsFts';
-import { buildPostFileContent } from '../../../lib/content/buildPostFile';
-import { commitFile, getFileSha, GitHubApiError, type GitHubConfig } from '../../../lib/github/contentsApi';
 import { frontmatterSchema } from '../../../lib/schemas/frontmatter';
 import { publishRequestSchema } from '../../../lib/schemas/publishRequest';
 import { isValidSlug, slugify } from '../../../lib/slug';
@@ -32,7 +30,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (!draft) return new Response('Draft not found', { status: 404 });
 
   const publishDate = new Date();
-  const isRepublish = Boolean(draft.slug && draft.githubPath);
+  const isRepublish = Boolean(draft.slug);
 
   // A draft can be empty or half-written while being edited — everything
   // must be present and valid before it becomes a real, published post.
@@ -56,46 +54,23 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
 
   // Reuse the existing slug on republish (editing an already-live post) so
-  // its URL and file path never move under it; otherwise derive a fresh one.
+  // its URL never moves under it; otherwise derive a fresh one.
   const slug = draft.slug ?? slugify(draft.title);
   if (!isValidSlug(slug)) {
     return Response.json({ error: 'Could not derive a valid slug from the title.' }, { status: 422 });
   }
 
-  const githubConfig: GitHubConfig = {
-    owner: env.GITHUB_REPO_OWNER,
-    repo: env.GITHUB_REPO_NAME,
-    token: env.GITHUB_PAT,
-  };
-  const path = draft.githubPath ?? `src/content/posts/${slug}.md`;
-  const fileContent = buildPostFileContent(parsedFrontmatter.data, draft.bodyMarkdown);
-
-  let commitResult;
+  let updated;
   try {
-    // Always re-fetch the current sha immediately before writing — never
-    // trust the cached github_sha column — so a concurrent edit made
-    // directly in the repo can't be silently overwritten.
-    const currentSha = draft.githubPath ? await getFileSha(githubConfig, path) : null;
-    commitResult = await commitFile(githubConfig, {
-      path,
-      content: fileContent,
-      message: `${isRepublish ? 'feat(post): update' : 'feat(post): publish'} "${parsedFrontmatter.data.title}"`,
-      sha: currentSha ?? undefined,
-    });
+    updated = await markDraftPublished(env.DB, draft.id, { slug }, actorEmail);
   } catch (err) {
-    const detail = err instanceof GitHubApiError ? err.message : 'Unknown error contacting GitHub.';
-    return Response.json({ error: `Failed to commit to GitHub: ${detail}` }, { status: 502 });
+    // The slug column is UNIQUE — this is the only way that constraint can
+    // fire here, since a republish always reuses its own already-claimed slug.
+    if (err instanceof Error && err.message.includes('UNIQUE')) {
+      return Response.json({ error: 'Another post already uses this slug.' }, { status: 409 });
+    }
+    throw err;
   }
-
-  // Only after the GitHub commit succeeds do D1/search state change — if it
-  // fails, the draft stays exactly as it was, so git and D1 never disagree
-  // about what's actually published.
-  const updated = await markDraftPublished(
-    env.DB,
-    draft.id,
-    { slug, githubPath: path, githubSha: commitResult.sha },
-    actorEmail,
-  );
 
   await upsertPostInIndex(env.DB, {
     slug,
@@ -110,8 +85,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     action: 'post.publish',
     targetType: 'post',
     targetId: slug,
-    metadata: { commitSha: commitResult.commitSha, githubPath: path, isRepublish },
+    metadata: { isRepublish },
   });
 
-  return Response.json({ draft: updated, commitUrl: commitResult.htmlUrl });
+  return Response.json({ draft: updated });
 };
