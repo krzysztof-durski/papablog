@@ -70,19 +70,25 @@ function formatDate(iso: string): string {
     ) : (
       <ul class="divide-y divide-slate-200 dark:divide-slate-800">
         {published.map((post) => (
-          <li class="flex items-center justify-between py-3">
+          <li class="flex items-center justify-between gap-4 py-3">
             <div>
-              {post.slug ? (
-                <a href={`/posts/${post.slug}/`} class="font-semibold hover:underline">
-                  {post.title}
-                </a>
-              ) : (
-                <span class="font-semibold">{post.title}</span>
-              )}
+              <a href={`/admin/posts/${post.id}/edit`} class="font-semibold hover:underline">
+                {post.title || 'Untitled draft'}
+              </a>
               <p class="text-xs text-slate-500 dark:text-slate-500">
                 Published {post.publishedAt && formatDate(post.publishedAt)}
               </p>
             </div>
+            {post.slug && (
+              <a
+                href={`/posts/${post.slug}/`}
+                target="_blank"
+                rel="noreferrer"
+                class="shrink-0 text-xs text-slate-500 hover:underline dark:text-slate-400"
+              >
+                View live ↗
+              </a>
+            )}
           </li>
         ))}
       </ul>
