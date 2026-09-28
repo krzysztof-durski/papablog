@@ -11,7 +11,10 @@ export const draftInputSchema = z.object({
   description: z.string().max(300).default(''),
   bodyMarkdown: z.string().max(100_000).default(''),
   tags: z.array(z.string().min(1).max(40)).max(20).default([]),
-  coverImagePath: z.url().optional(),
+  // Nullable (not just optional): omitting the field means "leave
+  // unchanged" (see updateDraft's `!== undefined` guard), while an
+  // explicit `null` is how the client clears a previously-set cover image.
+  coverImagePath: z.url().nullable().optional(),
 });
 
 export type DraftInput = z.infer<typeof draftInputSchema>;

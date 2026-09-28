@@ -3,8 +3,9 @@ import { extractStringField } from '../../lib/http/responseFields';
 
 interface Props {
   draftId: string;
-  coverImagePath: string | undefined;
+  coverImagePath: string | null;
   onUploaded: (url: string) => void;
+  onRemove: () => void;
 }
 
 const MAX_DIMENSION = 1600;
@@ -39,7 +40,7 @@ async function resizeImage(file: File): Promise<Blob> {
   });
 }
 
-export default function MediaUploader({ draftId, coverImagePath, onUploaded }: Props) {
+export default function MediaUploader({ draftId, coverImagePath, onUploaded, onRemove }: Props) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,11 +78,20 @@ export default function MediaUploader({ draftId, coverImagePath, onUploaded }: P
         Cover image
       </label>
       {coverImagePath && (
-        <img
-          src={coverImagePath}
-          alt="Current cover"
-          className="mt-2 max-h-40 rounded-md border border-slate-200 dark:border-slate-800"
-        />
+        <div className="mt-2 flex items-start gap-3">
+          <img
+            src={coverImagePath}
+            alt="Current cover"
+            className="max-h-40 rounded-md border border-slate-200 dark:border-slate-800"
+          />
+          <button
+            type="button"
+            onClick={onRemove}
+            className="text-xs font-semibold text-red-600 hover:underline dark:text-red-400"
+          >
+            Remove
+          </button>
+        </div>
       )}
       <input
         id="cover-image-input"

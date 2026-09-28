@@ -82,6 +82,37 @@ describe('updateDraft', () => {
     const updated = await updateDraft(env.DB, crypto.randomUUID(), { title: 'x' }, WRITER);
     expect(updated).toBeNull();
   });
+
+  it('sets a cover image path', async () => {
+    const created = await createDraft(env.DB, WRITER);
+
+    const updated = await updateDraft(
+      env.DB,
+      created.id,
+      { coverImagePath: 'https://media.example.com/cover.webp' },
+      WRITER,
+    );
+
+    expect(updated?.coverImagePath).toBe('https://media.example.com/cover.webp');
+  });
+
+  it('clears a cover image path when explicitly set to null', async () => {
+    const created = await createDraft(env.DB, WRITER);
+    await updateDraft(env.DB, created.id, { coverImagePath: 'https://media.example.com/cover.webp' }, WRITER);
+
+    const cleared = await updateDraft(env.DB, created.id, { coverImagePath: null }, WRITER);
+
+    expect(cleared?.coverImagePath).toBeNull();
+  });
+
+  it('leaves the cover image path untouched when the field is omitted entirely', async () => {
+    const created = await createDraft(env.DB, WRITER);
+    await updateDraft(env.DB, created.id, { coverImagePath: 'https://media.example.com/cover.webp' }, WRITER);
+
+    const updated = await updateDraft(env.DB, created.id, { title: 'Unrelated edit' }, WRITER);
+
+    expect(updated?.coverImagePath).toBe('https://media.example.com/cover.webp');
+  });
 });
 
 describe('listDrafts', () => {

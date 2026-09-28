@@ -21,7 +21,7 @@ export default function PostEditor({ draft }: Props) {
   const [description, setDescription] = useState(draft.description);
   const [tags, setTags] = useState<string[]>(draft.tags);
   const [bodyMarkdown, setBodyMarkdown] = useState(draft.bodyMarkdown);
-  const [coverImagePath, setCoverImagePath] = useState<string | undefined>(draft.coverImagePath ?? undefined);
+  const [coverImagePath, setCoverImagePath] = useState<string | null>(draft.coverImagePath);
   const [status, setStatus] = useState<SaveStatus>('idle');
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [publishState, setPublishState] = useState<{ status: Draft['status']; slug: string | null }>({
@@ -117,7 +117,14 @@ export default function PostEditor({ draft }: Props) {
       />
 
       <div className="mt-4">
-        <MediaUploader draftId={draft.id} coverImagePath={coverImagePath} onUploaded={setCoverImagePath} />
+        <MediaUploader
+          draftId={draft.id}
+          coverImagePath={coverImagePath}
+          onUploaded={setCoverImagePath}
+          onRemove={() => {
+            setCoverImagePath(null);
+          }}
+        />
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
